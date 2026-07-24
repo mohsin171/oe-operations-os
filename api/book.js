@@ -20,7 +20,7 @@ export default async function handler(req, res) {
         `SELECT b.id, b.slot_at, b.slot_type, b.status, p.name,
                 COALESCE(p.email, p.phone) AS contact
            FROM bookings b LEFT JOIN people p ON p.id = b.person_id
-          WHERE b.firm_id=$1 AND b.status='confirmed'
+          WHERE b.firm_id=$1 AND b.status='confirmed' AND b.slot_at >= now()
           ORDER BY b.slot_at ASC`, [fid]);
       return res.status(200).json({ bookings });
     }
