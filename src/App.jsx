@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import LeadDetail from './LeadDetail.jsx';
 import LoginPortal from './LoginPortal.jsx';
 import TeamModal from './TeamModal.jsx';
-import IntakeView from './IntakeView.jsx';
+import IntakeDashboard from './IntakeDashboard.jsx';
 
 const STAGES = [
   { key: 'new', label: 'New', dot: 'new' },
@@ -508,10 +508,7 @@ export default function App() {
         </div>
       </div>
 
-      {tool === 'intake' && (
-        <IntakeView api={api} canWrite={canWrite}
-          onOpenInPipeline={(id) => { setTool('pipeline'); setTab('pipeline'); setSelectedId(id); }} />
-      )}
+      {tool === 'intake' && <IntakeDashboard />}
 
       {tool === 'pipeline' && (
       <div className="shell">

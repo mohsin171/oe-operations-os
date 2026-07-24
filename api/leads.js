@@ -62,15 +62,12 @@ async function getList(req, res, firmId) {
   const params = [firmId];
   if (stage) { params.push(stage); clauses.push(`stage = $${params.length}`); }
   if (band) { params.push(band); clauses.push(`score_band = $${params.length}`); }
-  const leads = await all(
-    `SELECT id, name, email, phone, company, source, stage, score, score_band,
-            score_reasons, score_summary, score_recommendation, score_mode,
-            captured, nurture_step, nurture_paused, next_action_at, last_contacted_at,
-            assigned_to, created_at, updated_at
-       FROM people WHERE ${clauses.join(' AND ')}
+  const rows = await all(
+    `SELECT * FROM people WHERE ${clauses.join(' AND ')}
        ORDER BY (score IS NULL) DESC, score DESC, created_at DESC`,
     params
   );
+  const leads = rows.map((l) => ({ ...l, fields: l.captured, contact: l.email || l.phone || null }));
   return send(res, 200, { leads });
 }
 
@@ -86,7 +83,8 @@ async function getOne(req, res, firmId, id) {
     `SELECT id, type, detail, created_at FROM events WHERE person_id = $1 ORDER BY created_at DESC LIMIT 40`,
     [id]
   );
-  return send(res, 200, { lead, messages, events });
+  const person = { ...lead, fields: lead.captured || {}, contact: lead.email || lead.phone || null };
+  return send(res, 200, { lead, person, contact: person.contact, fields: person.fields, messages, events });
 }
 
 async function patch(req, res, firmId) {
@@ -97,14 +95,23 @@ async function patch(req, res, firmId) {
   const lead = await one(`SELECT * FROM people WHERE id = $1 AND firm_id = $2`, [id, firmId]);
   if (!lead) return send(res, 404, { error: 'not found' });
 
+  // Tool 1 dashboard sends action-style payloads; normalise them.
+  if (b.action === 'delete') b.delete = true;
+  if (b.action === 'stage' && b.stage) { /* falls through to stage handler below */ }
+  if (b.action === 'notes') {
+    await query(`UPDATE people SET notes=$2, updated_at=now() WHERE id=$1`, [id, String(b.notes || '')]);
+    return send(res, 200, { ok: true });
+  }
+
   // Human reply from the dashboard (stored in the thread; for live channels it dispatches too).
   if (b.reply && String(b.reply).trim()) {
     const text = String(b.reply).trim();
+    const channel = b.method || lead.channel || 'web';
     await query(`INSERT INTO messages (person_id,firm_id,channel,direction,body) VALUES ($1,$2,$3,'out',$4)`,
-      [id, firmId, lead.channel || 'web', text]);
+      [id, firmId, channel, text]);
     await query(`UPDATE people SET last_contacted_at=now(), handoff_needed=false, updated_at=now() WHERE id=$1`, [id]);
-    await query(`INSERT INTO events (person_id,firm_id,type,detail) VALUES ($1,$2,'human_reply',$3)`, [id, firmId, { channel: lead.channel || 'web' }]);
-    return send(res, 200, { ok: true });
+    await query(`INSERT INTO events (person_id,firm_id,type,detail) VALUES ($1,$2,'human_reply',$3)`, [id, firmId, { channel }]);
+    return send(res, 200, { ok: true, channel });
   }
   // Internal note (private, never sent to the lead).
   if (b.note && String(b.note).trim()) {

@@ -15,6 +15,34 @@ export default async function handler(req, res) {
     const firmId = await getFirmId();
     if (!firmId) return send(res, 200, { empty: true });
 
+    // Intake dashboard (Tool 1) analytics shape.
+    if (req.query && req.query.view === 'intake') {
+      const tot = await one(`SELECT count(*)::int n FROM people WHERE firm_id=$1 AND archived=false`, [firmId]);
+      const q = await one(`SELECT count(*)::int n FROM people WHERE firm_id=$1 AND archived=false AND qualification='qualified'`, [firmId]);
+      const rt = await one(`SELECT ROUND(AVG(EXTRACT(EPOCH FROM (first_reply_at - first_seen_at))))::int s FROM people WHERE firm_id=$1 AND first_reply_at IS NOT NULL AND first_seen_at IS NOT NULL`, [firmId]);
+      const ah = await one(`SELECT count(*)::int n FROM people WHERE firm_id=$1 AND archived=false AND (EXTRACT(DOW FROM first_seen_at) IN (0,6) OR EXTRACT(HOUR FROM first_seen_at) < 9 OR EXTRACT(HOUR FROM first_seen_at) >= 18)`, [firmId]);
+      const mb = await one(`SELECT count(*)::int n FROM bookings WHERE firm_id=$1 AND status='confirmed'`, [firmId]);
+      const qlv = await one(`SELECT COALESCE(SUM((captured->>'estimated_value')::numeric),0)::bigint v FROM people WHERE firm_id=$1 AND archived=false AND qualification='qualified' AND captured ? 'estimated_value'`, [firmId]);
+      const chans = await all(`SELECT channel, count(*)::int n FROM people WHERE firm_id=$1 AND archived=false GROUP BY channel`, [firmId]);
+      const ch = {}; chans.forEach((c) => { ch[c.channel || 'web'] = c.n; });
+      const trendRows = await all(`SELECT to_char(g.d, 'Dy') AS label, COALESCE(c.n,0)::int AS n
+        FROM generate_series((now()::date - interval '6 days'), now()::date, interval '1 day') AS g(d)
+        LEFT JOIN (SELECT first_seen_at::date AS dd, count(*) AS n FROM people WHERE firm_id=$1 AND archived=false GROUP BY 1) c ON c.dd = g.d
+        ORDER BY g.d`, [firmId]);
+      const total = tot?.n || 0, qualified = q?.n || 0;
+      return send(res, 200, {
+        total_leads: total,
+        qualified,
+        qualify_rate: total ? Math.round((qualified / total) * 100) : 0,
+        avg_response_seconds: rt?.s || 0,
+        after_hours: ah?.n || 0,
+        meetings_booked: mb?.n || 0,
+        qualified_loan_value: Number(qlv?.v || 0),
+        ch_web: ch.web || 0, ch_whatsapp: ch.whatsapp || 0, ch_email: ch.email || 0, ch_phone: ch.phone || 0,
+        trend: trendRows,
+      });
+    }
+
     const byStage = await all(
       `SELECT stage, count(*)::int n,
               COALESCE(SUM((captured->>'estimated_value')::numeric),0)::bigint value

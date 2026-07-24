@@ -1,0 +1,755 @@
+import './intake.css';
+import { useEffect, useState, useCallback, useRef } from 'react'
+
+// ============================================================================
+// TOOL 1 - OPERATIONS DASHBOARD (the command center)
+// The firm logs in here and sees its whole intake operation in one screen:
+// live analytics, the pipeline, and every lead's full conversation + the AI's
+// qualification reasoning. Auto-refreshes so new leads appear on their own.
+// ============================================================================
+
+const STAGES = [
+  { key: 'new', label: 'New' },
+  { key: 'qualified', label: 'Qualified' },
+  { key: 'booked', label: 'Booked' },
+  { key: 'handed_off', label: 'Needs a human' },
+  { key: 'won', label: 'Won' },
+]
+
+const REFRESH_MS = 8000 // "live" feel: poll every 8s
+
+// The Intake tab views each shared lead through an intake-lifecycle lens,
+// derived from the record (not the sales-pipeline 'stage' the Pipeline tab uses).
+function intakeStage(l) {
+  if (l.handoff_needed) return 'handed_off';
+  if (l.booking_at) return 'booked';
+  if (l.stage === 'won') return 'won';
+  if (l.qualification === 'qualified' || ['nurture','hot','engaged'].includes(l.stage)) return 'qualified';
+  return 'new';
+}
+
+// Safely parse a loan/property amount that may arrive as "220000", "220,000",
+// "£220k", etc. Returns a number or null (so we never render "£NaN").
+function money(v) {
+  if (v == null || v === '') return null
+  if (typeof v === 'number') return isFinite(v) ? v : null
+  let s = String(v).toLowerCase().replace(/[£$,\s]/g, '')
+  let mult = 1
+  if (s.endsWith('k')) { mult = 1e3; s = s.slice(0, -1) }
+  else if (s.endsWith('m')) { mult = 1e6; s = s.slice(0, -1) }
+  const n = parseFloat(s)
+  return isFinite(n) ? Math.round(n * mult) : null
+}
+function fmtGBP(v) {
+  const n = money(v)
+  return n == null ? null : '£' + n.toLocaleString()
+}
+
+const STAGE_LABELS = { new: 'New', qualified: 'Qualified', booked: 'Booked', handed_off: 'Needs a human', won: 'Won' }
+const QUAL_LABELS = { qualified: 'Qualified', poor_fit: 'Poor fit', spam: 'Spam', unclear: 'Unclear' }
+function filterLabel(f) {
+  if (!f) return ''
+  if (f.type === 'stage') return STAGE_LABELS[f.value] || f.value
+  if (f.type === 'qualification') return QUAL_LABELS[f.value] || f.value
+  if (f.type === 'all') return 'All leads'
+  return ''
+}
+
+export default function IntakeDashboard() {
+  const [firm, setFirm] = useState('')
+  const [firmTz, setFirmTz] = useState('Europe/London')
+  const [leads, setLeads] = useState([])
+  const [archived, setArchived] = useState([])
+  const [stats, setStats] = useState(null)
+  const [bookings, setBookings] = useState([])
+  const [selectedId, setSelectedId] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [lastUpdated, setLastUpdated] = useState(null)
+  const prevCount = useRef(0)
+  const [flash, setFlash] = useState(false)
+  const [activeTab, setActiveTab] = useState('overview')  // overview | pipeline | appointments | analytics
+  const [filter, setFilter] = useState(null)              // stage key or qualification to filter pipeline
+
+  const load = useCallback(async () => {
+    try {
+      const [l, a, bk, arch] = await Promise.all([
+        fetch('/api/leads').then((r) => r.json()),
+        fetch('/api/analytics?view=intake').then((r) => r.json()),
+        fetch('/api/book?list=1').then((r) => r.json()),
+        fetch('/api/leads?archived=1').then((r) => r.json()),
+      ])
+      const newLeads = l.leads || []
+      if (prevCount.current && newLeads.length > prevCount.current) {
+        setFlash(true)
+        setTimeout(() => setFlash(false), 2000)
+      }
+      prevCount.current = newLeads.length
+      setLeads(newLeads)
+      setArchived(arch.leads || [])
+      setFirm(l.firm?.name || '')
+      setFirmTz(l.firm?.timezone || 'Europe/London')
+      setStats(a)
+      setBookings(bk.bookings || [])
+      setLastUpdated(new Date())
+    } catch (e) {
+      /* keep last good data on transient error */
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    load()
+    const t = setInterval(load, REFRESH_MS)
+    return () => clearInterval(t)
+  }, [load])
+
+  // Drag-and-drop: move a lead to a new stage (optimistic, then persist).
+  const INTAKE_TO_DB = { new: 'new', qualified: 'hot', booked: 'engaged', handed_off: 'hot', won: 'won' };
+  const moveLeadToStage = useCallback(async (leadId, stage) => {
+    stage = INTAKE_TO_DB[stage] || stage;
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, stage } : l)))
+    try {
+      await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: leadId, action: 'stage', stage }),
+      })
+    } finally {
+      load()
+    }
+  }, [load])
+
+  const needsAttention = leads.filter((l) => intakeStage(l) === 'handed_off')
+  const stageCounts = STAGES.reduce((acc, s) => { acc[s.key] = leads.filter((l) => intakeStage(l) === s.key).length; return acc }, {})
+
+  // Tapping a stat card or sidebar stage filters the pipeline and jumps to it.
+  const applyFilter = (f) => { setFilter(f); setActiveTab('pipeline') }
+
+  return (
+    <div className="intake-scope"><div className="shell">
+      <div className="bg-glow bg-glow-1" />
+      <div className="bg-glow bg-glow-2" />
+      <span className="bg-ring bg-ring-1" />
+      <span className="bg-ring bg-ring-2" />
+      <Sidebar firm={firm} stageCounts={stageCounts} needsAttention={needsAttention.length} total={leads.length}
+        activeFilter={filter} onStage={(k) => applyFilter({ type: 'stage', value: k })}
+        archivedCount={archived.length} archiveActive={activeTab === 'archive'}
+        onArchive={() => { setActiveTab('archive'); setFilter(null); setSelectedId(null) }}
+        onHome={() => { setActiveTab('overview'); setFilter(null); setSelectedId(null) }} />
+      <div className="workspace">
+        <TopNav lastUpdated={lastUpdated} flash={flash} activeTab={activeTab} onTab={(t) => { setActiveTab(t); setFilter(null) }} />
+        <main className="main" key={activeTab}>
+
+          {(activeTab === 'overview' || activeTab === 'pipeline') && needsAttention.length > 0 && (
+            <div className="section attention-top">
+              <div className="attention" onClick={() => applyFilter({ type: 'stage', value: 'handed_off' })} style={{ cursor: 'pointer' }}>
+                <span className="attention-dot" />
+                {needsAttention.length} lead{needsAttention.length > 1 ? 's' : ''} need{needsAttention.length > 1 ? '' : 's'} a human. Tap to view.
+              </div>
+            </div>
+          )}
+
+          {(activeTab === 'overview') && stats && (
+            <div className="section">
+              <div className="section-head">
+                <span className="section-title">Today at a glance</span>
+                <span className="section-hint">live performance</span>
+              </div>
+              <Stats stats={stats} />
+            </div>
+          )}
+
+          {(activeTab === 'overview' || activeTab === 'analytics') && stats && (
+            <div className="section">
+              <div className="section-head">
+                <span className="section-title">Performance</span>
+                <span className="section-hint">conversion, channels, trend</span>
+              </div>
+              <Analytics stats={stats} />
+            </div>
+          )}
+
+          {(activeTab === 'overview' || activeTab === 'appointments') && bookings.length > 0 && (
+            <div className="section">
+              <div className="section-head">
+                <span className="section-title">Upcoming appointments</span>
+                <span className="section-hint">{bookings.length} booked</span>
+              </div>
+              <Appointments bookings={bookings} firmTz={firmTz} />
+            </div>
+          )}
+          {activeTab === 'appointments' && bookings.length === 0 && (
+            <div className="section"><div className="pipeline-empty"><strong>No appointments yet.</strong> Booked calls will appear here.</div></div>
+          )}
+
+          {(activeTab === 'overview' || activeTab === 'pipeline') && (
+            <div className="section">
+              <div className="section-head">
+                <span className="section-title">Pipeline</span>
+                <span className="section-hint">{filter ? filterLabel(filter) : 'every lead, by stage'}</span>
+              </div>
+              <Pipeline leads={leads} loading={loading} selectedId={selectedId} onSelect={setSelectedId} filter={filter} onClearFilter={() => setFilter(null)} onMove={moveLeadToStage} />
+            </div>
+          )}
+
+          {activeTab === 'archive' && (
+            <div className="section">
+              <div className="section-head">
+                <span className="section-title">Archive</span>
+                <span className="section-hint">no activity in 10+ days · kept for your records</span>
+              </div>
+              {archived.length === 0 ? (
+                <div className="pipeline-empty">
+                  <strong>Archive is empty.</strong> Leads with no activity for 10 days move here automatically. Nothing is deleted.
+                </div>
+              ) : (
+                <div className="filtered-grid">
+                  {archived.map((l) => (
+                    <LeadCard key={l.id} lead={l} selected={l.id === selectedId} onClick={() => setSelectedId(l.id)} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </main>
+        {selectedId && <LeadPanel id={selectedId} firmTz={firmTz} onClose={() => setSelectedId(null)} onChanged={load} />}
+      </div>
+    </div>
+    </div>
+  )
+}
+
+function Sidebar({ firm, stageCounts, needsAttention, total, activeFilter, onStage, onHome, archivedCount, archiveActive, onArchive }) {
+  const items = [
+    { key: 'new', label: 'New', dot: 'new' },
+    { key: 'qualified', label: 'Qualified', dot: 'qualified' },
+    { key: 'booked', label: 'Booked', dot: 'booked' },
+    { key: 'handed_off', label: 'Needs a human', dot: 'handed_off' },
+    { key: 'won', label: 'Won', dot: 'won' },
+  ]
+  const isActive = (k) => activeFilter && activeFilter.type === 'stage' && activeFilter.value === k
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-inner">
+      <button className="brand brand-home" onClick={onHome} title="Back to overview">
+        <div className="brand-mark">
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Rivergate Mortgages">
+            <path d="M16 4.5 L27 13 V27 H20 V19.5 H12 V27 H5 V13 Z" fill="#fff" fillOpacity="0.95"/>
+            <path d="M16 4.5 L27 13" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M16 4.5 L5 13" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+            <rect x="14" y="19.5" width="4" height="7.5" fill="#3875AE"/>
+          </svg>
+        </div>
+        <div className="brand-text">
+          <div className="brand-name">{firm || 'Rivergate'}</div>
+          <div className="brand-sub">Intake OS</div>
+        </div>
+      </button>
+
+      <div className="side-section">
+        <div className="side-label">Pipeline</div>
+        {items.map((it) => (
+          <button key={it.key} className={'side-item side-item-btn' + (isActive(it.key) ? ' active' : '')} onClick={() => onStage(it.key)}>
+            <span className={'side-dot ' + it.dot} />
+            <span className="side-item-label">{it.label}</span>
+            <span className="side-count">{stageCounts[it.key] || 0}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="side-section">
+        <div className="side-label">At a glance</div>
+        <div className="side-item"><span className="side-item-label">Total leads</span><span className="side-count">{total}</span></div>
+        {needsAttention > 0 && (
+          <button className="side-item side-item-btn attention-item" onClick={() => onStage('handed_off')}><span className="side-item-label">Needs a human</span><span className="side-count urgent">{needsAttention}</span></button>
+        )}
+        <button className={'side-item side-item-btn' + (archiveActive ? ' active' : '')} onClick={onArchive}><span className="side-item-label">Archive</span><span className="side-count">{archivedCount || 0}</span></button>
+      </div>
+
+      <div className="side-foot">Powered by Orca Edge</div>
+      </div>
+    </aside>
+  )
+}
+
+function TopNav({ lastUpdated, flash, activeTab, onTab }) {
+  const tabs = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'pipeline', label: 'Pipeline' },
+    { key: 'appointments', label: 'Appointments' },
+    { key: 'analytics', label: 'Analytics' },
+    { key: 'archive', label: 'Archive' },
+  ]
+  return (
+    <header className="topnav">
+      <div className="topnav-tabs">
+        {tabs.map((t) => (
+          <button key={t.key} className={'tab' + (activeTab === t.key ? ' active' : '')} onClick={() => onTab(t.key)}>{t.label}</button>
+        ))}
+      </div>
+      <div className={'live-badge' + (flash ? ' flash' : '')}>
+        <span className="live-dot" />
+        Live{lastUpdated && <span className="updated"> · {timeAgo(lastUpdated)}</span>}
+      </div>
+    </header>
+  )
+}
+
+function Stats({ stats }) {
+  const rt = stats.avg_response_seconds
+  const rtLabel = rt === 0 ? '—' : rt < 60 ? `${rt}s` : `${Math.round(rt / 60)}m`
+  const pipelineValue = Number(stats.qualified_loan_value || 0)
+  const fmtMoney = (n) => n >= 1e6 ? `£${(n / 1e6).toFixed(1)}m` : n >= 1e3 ? `£${Math.round(n / 1e3)}k` : `£${n}`
+
+  return (
+    <section className="stats">
+      <div className="stat hero">
+        <div className="stat-value">{rtLabel}</div>
+        <div className="stat-label">Avg response time</div>
+        <div className="stat-note">vs hours by hand</div>
+      </div>
+      <div className="stat">
+        <div className="stat-value">{stats.total_leads}</div>
+        <div className="stat-label">Leads captured</div>
+      </div>
+      <div className="stat">
+        <div className="stat-value">{stats.qualified}</div>
+        <div className="stat-label">Qualified</div>
+        {stats.total_leads > 0 && <div className="stat-note">{stats.qualify_rate}% of all leads</div>}
+      </div>
+      <div className="stat">
+        <div className="stat-value">{stats.after_hours}</div>
+        <div className="stat-label">After hours</div>
+        <div className="stat-note">would've been missed</div>
+      </div>
+      <div className="stat value">
+        <div className="stat-value">{fmtMoney(pipelineValue)}</div>
+        <div className="stat-label">Qualified pipeline</div>
+        <div className="stat-note">illustrative, from loan sizes</div>
+      </div>
+    </section>
+  )
+}
+
+function Analytics({ stats }) {
+  return (
+    <div className="analytics-row">
+      <Funnel stats={stats} />
+      <Channels stats={stats} />
+      <Trend trend={stats.trend || []} />
+    </div>
+  )
+}
+
+function Funnel({ stats }) {
+  const total = stats.total_leads || 0
+  const steps = [
+    { label: 'Captured', n: total, pct: 100 },
+    { label: 'Qualified', n: stats.qualified, pct: total ? Math.round((stats.qualified / total) * 100) : 0 },
+    { label: 'Booked', n: stats.meetings_booked, pct: total ? Math.round((stats.meetings_booked / total) * 100) : 0 },
+  ]
+  return (
+    <div className="panel-box">
+      <h3 className="box-title">Conversion funnel</h3>
+      <div className="funnel">
+        {steps.map((s) => (
+          <div key={s.label} className="funnel-row">
+            <div className="funnel-head"><span>{s.label}</span><strong>{s.n}</strong></div>
+            <div className="funnel-bar"><div className="funnel-fill" style={{ width: Math.max(s.pct, 3) + '%' }} /></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Channels({ stats }) {
+  const rows = [
+    { label: 'Website', n: stats.ch_web || 0, cls: 'web' },
+    { label: 'WhatsApp', n: stats.ch_whatsapp || 0, cls: 'whatsapp' },
+    { label: 'Email', n: stats.ch_email || 0, cls: 'email' },
+    { label: 'Phone', n: stats.ch_phone || 0, cls: 'phone' },
+  ].filter((r) => r.n > 0)
+  const max = Math.max(1, ...rows.map((r) => r.n))
+  return (
+    <div className="panel-box">
+      <h3 className="box-title">Leads by channel</h3>
+      {rows.length === 0 && <p className="box-empty">No leads yet.</p>}
+      <div className="channels">
+        {rows.map((r) => (
+          <div key={r.label} className="chan-row">
+            <span className="chan-label">{r.label}</span>
+            <div className="chan-bar"><div className={'chan-fill ' + r.cls} style={{ width: (r.n / max) * 100 + '%' }} /></div>
+            <span className="chan-n">{r.n}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Trend({ trend }) {
+  const max = Math.max(1, ...trend.map((d) => d.n))
+  return (
+    <div className="panel-box">
+      <h3 className="box-title">Last 7 days</h3>
+      <div className="trend">
+        {trend.map((d, i) => (
+          <div key={i} className="trend-col">
+            <div className="trend-bar-wrap"><div className="trend-bar" style={{ height: Math.max((d.n / max) * 100, 4) + '%' }} title={d.n + ' leads'} /></div>
+            <div className="trend-label">{d.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Appointments({ bookings, firmTz = 'Europe/London' }) {
+  return (
+    <div className="appts-list">
+      {bookings.map((b) => {
+        const d = new Date(b.slot_at)
+        return (
+          <div key={b.id} className="appt">
+            <div className="appt-when">
+              <div className="appt-day">{d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: firmTz })}</div>
+              <div className="appt-time">{d.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', timeZone: firmTz })}</div>
+            </div>
+            <div className="appt-who">
+              <strong>{b.name || 'Unknown'}</strong>
+              <span><span className="appt-type">{b.slot_type}</span>{b.contact ? ' · ' + b.contact : ''}</span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function Pipeline({ leads, loading, selectedId, onSelect, filter, onClearFilter, onMove }) {
+  const [dragOver, setDragOver] = useState(null)
+  if (loading && leads.length === 0) return <div className="pipeline"><div className="pipeline-empty">Loading your pipeline…</div></div>
+  if (leads.length === 0) {
+    return (
+      <div className="pipeline">
+        <div className="pipeline-empty">
+          <strong>No leads yet.</strong> Your intake is live and watching, 24/7.
+        </div>
+      </div>
+    )
+  }
+
+  // Filtered view: a focused single column of matching leads, with a clear
+  // "back to full pipeline" control.
+  if (filter && filter.type !== 'all') {
+    const match = (l) =>
+      (filter.type === 'stage' && intakeStage(l) === filter.value) ||
+      (filter.type === 'qualification' && l.qualification === filter.value)
+    const shown = leads.filter(match)
+    return (
+      <div className="pipeline-filtered">
+        <button className="back-to-pipeline" onClick={onClearFilter}>
+          ← Back to full pipeline
+        </button>
+        {shown.length === 0 && <div className="pipeline-empty">No leads match this filter right now.</div>}
+        <div className="filtered-grid">
+          {shown.map((l) => (
+            <LeadCard key={l.id} lead={l} selected={l.id === selectedId} onClick={() => onSelect(l.id)} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Default: even kanban across all stages, with drag-and-drop between columns.
+  return (
+    <div className="pipeline">
+      {STAGES.map((stage) => {
+        const inStage = leads.filter((l) => intakeStage(l) === stage.key)
+        const isOver = dragOver === stage.key
+        return (
+          <div
+            key={stage.key}
+            className={'column' + (isOver ? ' drag-over' : '')}
+            onDragOver={(e) => { e.preventDefault(); if (dragOver !== stage.key) setDragOver(stage.key) }}
+            onDragLeave={(e) => { if (e.currentTarget === e.target) setDragOver(null) }}
+            onDrop={(e) => {
+              e.preventDefault()
+              const leadId = e.dataTransfer.getData('text/plain')
+              setDragOver(null)
+              if (leadId && onMove) {
+                const lead = leads.find((l) => l.id === leadId)
+                if (lead && lead.stage !== stage.key) onMove(leadId, stage.key)
+              }
+            }}
+          >
+            <div className="column-head">
+              <span className={'stage-dot ' + stage.key} />
+              {stage.label}
+              <span className="count">{inStage.length}</span>
+            </div>
+            <div className="column-body">
+              {inStage.length === 0 && <div className="column-empty">{isOver ? 'Drop here' : 'Nothing here yet'}</div>}
+              {inStage.map((l) => (
+                <LeadCard key={l.id} lead={l} selected={l.id === selectedId} onClick={() => onSelect(l.id)}
+                  draggable onDragStart={(e) => { e.dataTransfer.setData('text/plain', l.id); e.dataTransfer.effectAllowed = 'move' }} />
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function LeadCard({ lead, selected, onClick, draggable, onDragStart }) {
+  const f = lead.fields || {}
+  return (
+    <button className={'card' + (selected ? ' selected' : '')} onClick={onClick}
+      draggable={draggable} onDragStart={onDragStart}>
+      <div className="card-top">
+        <strong>{lead.name || 'Unknown visitor'}</strong>
+        <QualBadge q={lead.qualification} />
+      </div>
+      <div className="card-matter">{lead.matter || 'No matter captured yet'}</div>
+      {f.loan_purpose && (
+        <div className="card-fields">
+          <span className="chip">{f.loan_purpose}</span>
+          {fmtGBP(f.loan_amount) && <span className="chip">{fmtGBP(f.loan_amount)}</span>}
+          {f.buyer_type && <span className="chip">{f.buyer_type}</span>}
+        </div>
+      )}
+      <div className="card-meta">
+        <span className={'channel ' + lead.channel}>{lead.channel}</span>
+        {lead.urgency !== 'unknown' && <span className={'urgency ' + lead.urgency}>{lead.urgency}</span>}
+        <span className="ago">{timeAgo(new Date(lead.created_at))}</span>
+      </div>
+    </button>
+  )
+}
+
+function QualBadge({ q }) {
+  const label = { qualified: 'Qualified', poor_fit: 'Poor fit', spam: 'Spam', unclear: 'Unclear' }[q] || q
+  return <span className={'badge ' + q}>{label}</span>
+}
+
+function LeadPanel({ id, firmTz = 'Europe/London', onClose, onChanged }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [reply, setReply] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sendResult, setSendResult] = useState(null)
+  const [method, setMethod] = useState(null)
+  const [note, setNote] = useState('')
+  const [noteSaved, setNoteSaved] = useState(false)
+
+  function load() {
+    fetch(`/api/leads?id=${encodeURIComponent(id)}`)
+      .then((r) => r.json())
+      .then((d) => { setData(d); if (d && d.person) setNote(d.person.notes || '') })
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    setLoading(true); setReply(''); setSendResult(null); setMethod(null); setNoteSaved(false)
+    load()
+  }, [id])
+
+  async function sendReply() {
+    if (!reply.trim() || sending) return
+    setSending(true); setSendResult(null)
+    try {
+      const r = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, reply: reply.trim(), method: method || undefined }),
+      })
+      const j = await r.json()
+      if (j.ok) {
+        setSendResult({ ok: true, text: `Sent via ${j.channel}` })
+        setReply('')
+        load()
+      } else {
+        setSendResult({ ok: false, text: j.detail || j.error || 'Could not send.' })
+      }
+    } catch {
+      setSendResult({ ok: false, text: 'Could not send. Please try again.' })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function postAction(payload) {
+    const r = await fetch('/api/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...payload }),
+    })
+    return r.json()
+  }
+  async function changeStage(stage) {
+    const j = await postAction({ action: 'stage', stage })
+    if (j.ok) { load(); onChanged && onChanged() }
+  }
+  async function deleteLead() {
+    if (!window.confirm('Delete this lead permanently? This removes its conversation too.')) return
+    const j = await postAction({ action: 'delete' })
+    if (j.ok) { onClose(); onChanged && onChanged() }
+  }
+  async function saveNote() {
+    const j = await postAction({ action: 'notes', notes: note })
+    if (j.ok) { setNoteSaved(true); setTimeout(() => setNoteSaved(false), 2000) }
+  }
+
+  if (loading) return <aside className="panel"><div className="panel-loading">Loading…</div></aside>
+  if (!data || data.error) return <aside className="panel"><div className="panel-loading">Not found.</div></aside>
+
+  const p = data.person
+  const f = p.fields || {}
+
+  return (
+    <aside className="panel">
+      <div className="panel-head">
+        <div>
+          <h2>{p.name || 'Unknown visitor'}</h2>
+          <QualBadge q={p.qualification} />
+        </div>
+        <button className="close" onClick={onClose}>✕</button>
+      </div>
+
+      <div className="panel-actions">
+        <div className="stage-move">
+          <span className="pa-label">Move to</span>
+          {[['qualified','Qualified'],['booked','Booked'],['won','Won'],['lost','Lost']].map(([k,lbl]) => (
+            <button
+              key={k}
+              className={'stage-btn stage-btn-' + k + (p.stage === k ? ' current' : '')}
+              onClick={() => changeStage(k)}
+              disabled={p.stage === k}
+            >{lbl}</button>
+          ))}
+        </div>
+        <button className="delete-btn" onClick={deleteLead} title="Delete lead">Delete</button>
+      </div>
+
+      {p.handoff_needed && (
+        <div className="panel-handoff">
+          <strong>Needs a human</strong> · {p.handoff_trigger?.replace('_', ' ')}
+          <div>{p.handoff_summary}</div>
+        </div>
+      )}
+
+      <div className="panel-section">
+        <h3>Contact</h3>
+        <div className="kv"><span>Name</span><span>{p.name || '—'}</span></div>
+        <div className="kv"><span>Contact</span><span>{p.contact || '—'}</span></div>
+        <div className="kv"><span>Channel</span><span>{p.channel}</span></div>
+        <div className="kv"><span>Source</span><span>{p.source || '—'}</span></div>
+      </div>
+
+      {(f.loan_purpose || f.loan_amount) && (
+        <div className="panel-section">
+          <h3>Mortgage details captured</h3>
+          {f.loan_purpose && <div className="kv"><span>Purpose</span><span>{f.loan_purpose}</span></div>}
+          {fmtGBP(f.loan_amount) && <div className="kv"><span>Loan amount</span><span>{fmtGBP(f.loan_amount)}</span></div>}
+          {fmtGBP(f.property_value) && <div className="kv"><span>Property value</span><span>{fmtGBP(f.property_value)}</span></div>}
+          {f.timeline && <div className="kv"><span>Timeline</span><span>{f.timeline}</span></div>}
+          {f.buyer_type && <div className="kv"><span>Buyer type</span><span>{f.buyer_type}</span></div>}
+        </div>
+      )}
+
+      <div className="panel-section reasoning">
+        <h3>Why the AI judged this "{p.qualification}"</h3>
+        <p>{p.qualification_reason || '—'}</p>
+      </div>
+
+      {p.booking_at && (
+        <div className="panel-section">
+          <h3>Booking</h3>
+          <div className="kv"><span>{p.booking_type || 'Meeting'}</span><span>{new Date(p.booking_at).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: firmTz })}</span></div>
+        </div>
+      )}
+
+      <div className="panel-section">
+        <h3>Conversation</h3>
+        {p.agent_takeover && <div className="takeover-note">You're handling this lead. The AI has stepped back.</div>}
+        <div className="convo">
+          {data.messages.length === 0 && <p className="muted">No messages recorded.</p>}
+          {data.messages.map((m, i) => (
+            <div key={i} className={'msg ' + m.role}>
+              <div className="msg-role">{m.role === 'user' ? 'Visitor' : (p.agent_takeover || m.channel === 'email' ? 'Reply' : 'AI intake')}</div>
+              <div className="msg-content">{m.content}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel-section notes-box">
+        <h3>Private note <span className="note-sub">only your team sees this</span></h3>
+        <textarea
+          className="note-input"
+          placeholder="e.g. Called, left voicemail. Trying again Thursday."
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+        />
+        <div className="reply-actions">
+          <button className="note-save" onClick={saveNote} disabled={note === (p.notes || '')}>Save note</button>
+          {noteSaved && <span className="reply-result ok">Saved</span>}
+        </div>
+      </div>
+
+      <div className="panel-section reply-box">
+        <h3>Reply to {p.name || 'this lead'}</h3>
+        {(() => {
+          const reach = data.reach || []
+          if (reach.length === 0) {
+            return <p className="reply-hint warn">This lead left no contact, so a reply can't be delivered. It will be saved to the conversation in case they return.</p>
+          }
+          const nice = { email: 'Email', whatsapp: 'WhatsApp', sms: 'SMS', instagram: 'Instagram', messenger: 'Messenger', facebook: 'Facebook' }
+          const active = method || reach[0]
+          return (
+            <>
+              <p className="reply-hint">Reply goes to <strong>{p.contact || p.channel}</strong></p>
+              {reach.length > 1 && (
+                <div className="method-pick">
+                  {reach.map((m) => (
+                    <button key={m} className={'method-btn' + (active === m ? ' active' : '')} onClick={() => setMethod(m)}>
+                      {nice[m] || m}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )
+        })()}
+        <textarea
+          className="reply-input"
+          placeholder={`Type your reply…`}
+          value={reply}
+          onChange={(e) => setReply(e.target.value)}
+          rows={3}
+          disabled={(data.reach || []).length === 0}
+        />
+        <div className="reply-actions">
+          <button className="reply-send" onClick={sendReply} disabled={sending || !reply.trim() || (data.reach || []).length === 0}>
+            {sending ? 'Sending…' : 'Send reply'}
+          </button>
+          {sendResult && <span className={'reply-result ' + (sendResult.ok ? 'ok' : 'err')}>{sendResult.text}</span>}
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+function timeAgo(date) {
+  const s = Math.floor((Date.now() - date.getTime()) / 1000)
+  if (s < 60) return 'just now'
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}

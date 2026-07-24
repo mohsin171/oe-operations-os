@@ -14,6 +14,16 @@ export default async function handler(req, res) {
   const fid = await firmId();
 
   if (req.method === 'GET') {
+    // Confirmed appointments list for the Intake dashboard.
+    if (req.query && req.query.list) {
+      const bookings = await all(
+        `SELECT b.id, b.slot_at, b.slot_type, b.status, p.name,
+                COALESCE(p.email, p.phone) AS contact
+           FROM bookings b LEFT JOIN people p ON p.id = b.person_id
+          WHERE b.firm_id=$1 AND b.status='confirmed'
+          ORDER BY b.slot_at ASC`, [fid]);
+      return res.status(200).json({ bookings });
+    }
     let taken = [];
     try { taken = (await all(`SELECT slot_at FROM bookings WHERE firm_id=$1 AND status='confirmed'`, [fid])).map(r => new Date(r.slot_at).toISOString()); } catch {}
     const slots = nextSlots(8).filter(s => !taken.includes(s)).slice(0, 6);
