@@ -339,7 +339,7 @@
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
   // Fetch branding, then build.
-  fetch(API + "/api/widget-config")
+  fetch(API + "/api/chat")
     .then(function (r) { return r.json(); })
     .then(function (cfg) {
       if (cfg.accent) accent = cfg.accent;

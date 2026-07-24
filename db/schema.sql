@@ -125,3 +125,39 @@ CREATE TABLE IF NOT EXISTS bookings (
   UNIQUE (firm_id, slot_at)
 );
 CREATE INDEX IF NOT EXISTS bookings_firm_idx ON bookings(firm_id, slot_at);
+
+-- ============================================================================
+-- SECURE ADMIN LOGIN (invite-based email OTP + server-side sessions)
+-- ============================================================================
+-- Allowlist: only these emails may request a login code. Orca Edge provisions them.
+CREATE TABLE IF NOT EXISTS admins (
+  id          SERIAL PRIMARY KEY,
+  email       TEXT UNIQUE NOT NULL,
+  firm_id     INTEGER REFERENCES firms(id) ON DELETE CASCADE,
+  name        TEXT,
+  active      BOOLEAN NOT NULL DEFAULT true,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- One-time login codes. Hashed, short-lived, single-use, attempt-capped.
+CREATE TABLE IF NOT EXISTS login_codes (
+  id          SERIAL PRIMARY KEY,
+  email       TEXT NOT NULL,
+  code_hash   TEXT NOT NULL,
+  expires_at  TIMESTAMPTZ NOT NULL,
+  used        BOOLEAN NOT NULL DEFAULT false,
+  attempts    INTEGER NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS login_codes_email_idx ON login_codes(email, created_at DESC);
+
+-- Server-side sessions. The cookie holds a high-entropy token; only its hash is stored.
+CREATE TABLE IF NOT EXISTS sessions (
+  id          SERIAL PRIMARY KEY,
+  token_hash  TEXT UNIQUE NOT NULL,
+  email       TEXT NOT NULL,
+  firm_id     INTEGER,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at  TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sessions_token_idx ON sessions(token_hash);

@@ -4,10 +4,13 @@ import { all, one } from '../db/index.js';
 import { send, getFirmId } from '../lib/http.js';
 import { closeProbForScore } from '../lib/config.js';
 import { buildBriefing } from '../lib/briefing.js';
+import { requireSession } from '../lib/session.js';
 
 const OPEN = ['new', 'nurture', 'hot', 'engaged'];
 
 export default async function handler(req, res) {
+  const _sess = await requireSession(req, res);
+  if (!_sess) return;
   try {
     const firmId = await getFirmId();
     if (!firmId) return send(res, 200, { empty: true });

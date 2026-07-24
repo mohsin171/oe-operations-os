@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import LeadDetail from './LeadDetail.jsx';
+import LoginPortal from './LoginPortal.jsx';
 
 const STAGES = [
   { key: 'new', label: 'New', dot: 'new' },
@@ -105,7 +106,7 @@ function Sidebar({ firm, stageCounts, bandCounts, total, hotWaiting, filter, onF
 }
 
 /* ---------- topnav ---------- */
-function TopNav({ lastUpdated, flash, tab, onTab, onOpenImport, onRun, running }) {
+function TopNav({ lastUpdated, flash, tab, onTab, onOpenImport, onRun, running, onLogout }) {
   const tabs = [{ key: 'overview', label: 'Overview' }, { key: 'pipeline', label: 'Pipeline' }, { key: 'reports', label: 'Reports' }];
   return (
     <header className="topnav">
@@ -118,6 +119,7 @@ function TopNav({ lastUpdated, flash, tab, onTab, onOpenImport, onRun, running }
         </div>
         <button className="tool-btn" onClick={onOpenImport}>Import leads</button>
         <button className="tool-btn primary" onClick={onRun} disabled={running}>{running ? 'Running…' : 'Run pipeline'}</button>
+        {onLogout && <button className="tool-btn logout-btn" onClick={onLogout} title="Sign out">Sign out</button>}
       </div>
     </header>
   );
@@ -414,6 +416,7 @@ export default function App() {
   const [leads, setLeads] = useState([]);
   const [stats, setStats] = useState(null);
   const [cfg, setCfg] = useState(null);
+  const [authed, setAuthed] = useState(null); // null=checking, false=locked, true=in
   const [selectedId, setSelectedId] = useState(null);
   const [tab, setTab] = useState('overview');
   const [filter, setFilter] = useState(null);
@@ -434,8 +437,11 @@ export default function App() {
     setLeads(incoming); setStats(s); if (!cfg) setCfg(c); setUpdatedAt(new Date());
   }, [cfg]);
 
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => { const t = setInterval(load, 8000); return () => clearInterval(t); }, [load]);
+  useEffect(() => {
+    api('/api/config').then((c) => { setCfg(c); setAuthed(!!c.authed); }).catch(() => setAuthed(false));
+  }, []);
+  useEffect(() => { if (authed) load(); }, [authed, load]);
+  useEffect(() => { if (!authed) return; const t = setInterval(load, 8000); return () => clearInterval(t); }, [authed, load]);
 
   const runPipeline = async () => { setRunning(true); await api('/api/tick', { method: 'POST' }); await load(); setRunning(false); };
   const moveLeadToStage = async (leadId, stage) => {
@@ -450,6 +456,7 @@ export default function App() {
     return r || { imported: 0, skipped: 0 };
   };
   const closeImport = () => { setImportOpen(false); };
+  const logout = async () => { try { await api('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }) }); } catch {} setAuthed(false); };
   const clearAll = async () => {
     await api('/api/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clearAll: true }) });
     await load();
@@ -473,6 +480,9 @@ export default function App() {
     return (b.score ?? -1) - (a.score ?? -1);
   });
 
+  if (authed === null) return <div className="login-wrap"><div className="login-bg-glow g1" /><div className="login-bg-glow g2" /><div className="login-boot">Loading…</div></div>;
+  if (!authed) return <LoginPortal firmName={cfg?.firm?.name} onAuthed={() => setAuthed(true)} />;
+
   return (
     <>
       <div className="shell">
@@ -486,7 +496,7 @@ export default function App() {
 
         <div className="workspace">
           <TopNav lastUpdated={updatedAt} flash={flash} tab={tab} onTab={(t) => { setTab(t); setFilter(null); }}
-            onOpenImport={() => setImportOpen(true)} onRun={runPipeline} running={running} />
+            onOpenImport={() => setImportOpen(true)} onRun={runPipeline} running={running} onLogout={logout} />
 
           <main className="main" key={tab + (filter ? filter.value : '')}>
             {total === 0 && (
