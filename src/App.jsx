@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import LeadDetail from './LeadDetail.jsx';
 import LoginPortal from './LoginPortal.jsx';
 import TeamModal from './TeamModal.jsx';
+import IntakeView from './IntakeView.jsx';
 
 const STAGES = [
   { key: 'new', label: 'New', dot: 'new' },
@@ -508,13 +509,8 @@ export default function App() {
       </div>
 
       {tool === 'intake' && (
-        <div className="tool-view">
-          <div className="intake-soon">
-            <div className="eh-icon">💬</div>
-            <h2>24/7 AI Client Intake and CRM Automation</h2>
-            <p>The conversations inbox, live threads across every channel, human reply, and internal notes are being built into this tab next. Leads captured here flow automatically into the pipeline.</p>
-          </div>
-        </div>
+        <IntakeView api={api} canWrite={canWrite}
+          onOpenInPipeline={(id) => { setTool('pipeline'); setTab('pipeline'); setSelectedId(id); }} />
       )}
 
       {tool === 'pipeline' && (

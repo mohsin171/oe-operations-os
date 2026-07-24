@@ -14,6 +14,9 @@ export default async function handler(req, res) {
     const firmId = await getFirmId();
     if (!firmId) return send(res, 200, { leads: [] });
 
+    if (req.method === 'GET' && req.query && req.query.view === 'inbox') {
+      return await getInbox(req, res, firmId);
+    }
     if (req.method === 'GET' && req.query && req.query.id) {
       return await getOne(req, res, firmId, Number(req.query.id));
     }
@@ -34,6 +37,22 @@ export default async function handler(req, res) {
     console.error('[leads]', err);
     return send(res, 500, { error: err.message });
   }
+}
+
+async function getInbox(req, res, firmId) {
+  const rows = await all(
+    `SELECT p.id, p.name, p.email, p.phone, p.stage, p.score, p.score_band, p.channel,
+            p.handoff_needed, p.qualification,
+            (SELECT body FROM messages m WHERE m.person_id=p.id ORDER BY created_at DESC LIMIT 1) AS last_body,
+            (SELECT direction FROM messages m WHERE m.person_id=p.id ORDER BY created_at DESC LIMIT 1) AS last_dir,
+            (SELECT max(created_at) FROM messages m WHERE m.person_id=p.id) AS last_at
+       FROM people p
+      WHERE p.firm_id=$1 AND p.archived=false
+        AND EXISTS (SELECT 1 FROM messages m WHERE m.person_id=p.id)
+      ORDER BY p.handoff_needed DESC, last_at DESC NULLS LAST`,
+    [firmId]
+  );
+  return send(res, 200, { conversations: rows });
 }
 
 async function getList(req, res, firmId) {
@@ -77,6 +96,22 @@ async function patch(req, res, firmId) {
   if (!id) return send(res, 400, { error: 'id required' });
   const lead = await one(`SELECT * FROM people WHERE id = $1 AND firm_id = $2`, [id, firmId]);
   if (!lead) return send(res, 404, { error: 'not found' });
+
+  // Human reply from the dashboard (stored in the thread; for live channels it dispatches too).
+  if (b.reply && String(b.reply).trim()) {
+    const text = String(b.reply).trim();
+    await query(`INSERT INTO messages (person_id,firm_id,channel,direction,body) VALUES ($1,$2,$3,'out',$4)`,
+      [id, firmId, lead.channel || 'web', text]);
+    await query(`UPDATE people SET last_contacted_at=now(), handoff_needed=false, updated_at=now() WHERE id=$1`, [id]);
+    await query(`INSERT INTO events (person_id,firm_id,type,detail) VALUES ($1,$2,'human_reply',$3)`, [id, firmId, { channel: lead.channel || 'web' }]);
+    return send(res, 200, { ok: true });
+  }
+  // Internal note (private, never sent to the lead).
+  if (b.note && String(b.note).trim()) {
+    await query(`INSERT INTO events (person_id,firm_id,type,detail) VALUES ($1,$2,'note',$3)`, [id, firmId, { note: String(b.note).trim() }]);
+    await query(`UPDATE people SET updated_at=now() WHERE id=$1`, [id]);
+    return send(res, 200, { ok: true });
+  }
 
   // Permanent delete (data-protection erasure). Cascades to messages and events.
   if (b.delete) {
