@@ -68,6 +68,7 @@ export default function IntakeDashboard() {
   const prevCount = useRef(0)
   const [flash, setFlash] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')  // overview | pipeline | appointments | analytics
+  const [pipeView, setPipeView] = useState('board')       // list | board
   const [filter, setFilter] = useState(null)              // stage key or qualification to filter pipeline
 
   const load = useCallback(async () => {
@@ -188,8 +189,12 @@ export default function IntakeDashboard() {
               <div className="section-head">
                 <span className="section-title">Pipeline</span>
                 <span className="section-hint">{filter ? filterLabel(filter) : 'every lead, by stage'}</span>
+                <div className="pipe-view-toggle">
+                  <button className={'pv-btn' + (pipeView === 'list' ? ' active' : '')} onClick={() => setPipeView('list')}>List</button>
+                  <button className={'pv-btn' + (pipeView === 'board' ? ' active' : '')} onClick={() => setPipeView('board')}>Board</button>
+                </div>
               </div>
-              <Pipeline leads={leads} loading={loading} selectedId={selectedId} onSelect={setSelectedId} filter={filter} onClearFilter={() => setFilter(null)} onMove={moveLeadToStage} />
+              <Pipeline leads={leads} loading={loading} view={pipeView} selectedId={selectedId} onSelect={setSelectedId} filter={filter} onClearFilter={() => setFilter(null)} onMove={moveLeadToStage} />
             </div>
           )}
 
@@ -428,7 +433,7 @@ function Appointments({ bookings, firmTz = 'Europe/London' }) {
   )
 }
 
-function Pipeline({ leads, loading, selectedId, onSelect, filter, onClearFilter, onMove }) {
+function Pipeline({ leads, loading, view = 'board', selectedId, onSelect, filter, onClearFilter, onMove }) {
   const [dragOver, setDragOver] = useState(null)
   if (loading && leads.length === 0) return <div className="pipeline"><div className="pipeline-empty">Loading your pipeline…</div></div>
   if (leads.length === 0) {
@@ -437,6 +442,23 @@ function Pipeline({ leads, loading, selectedId, onSelect, filter, onClearFilter,
         <div className="pipeline-empty">
           <strong>No leads yet.</strong> Your intake is live and watching, 24/7.
         </div>
+      </div>
+    )
+  }
+
+  // List view: every lead in one column, grouped by stage order, newest first.
+  if (view === 'list' && !(filter && filter.type !== 'all')) {
+    const order = { new: 0, qualified: 1, booked: 2, handed_off: 3, won: 4 }
+    const sorted = [...leads].sort((a, b) => {
+      const sa = order[intakeStage(a)] ?? 9, sb = order[intakeStage(b)] ?? 9
+      if (sa !== sb) return sa - sb
+      return new Date(b.created_at) - new Date(a.created_at)
+    })
+    return (
+      <div className="pipeline-list">
+        {sorted.map((l) => (
+          <LeadCard key={l.id} lead={l} selected={l.id === selectedId} onClick={() => onSelect(l.id)} />
+        ))}
       </div>
     )
   }

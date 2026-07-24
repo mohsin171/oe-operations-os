@@ -477,3 +477,10 @@
 .intake-scope .shell { min-height: calc(100vh - 60px); }
 
 .intake-scope, .intake-scope * { box-sizing: border-box; }
+
+/* pipeline view toggle (List/Board) + list layout, scoped to intake */
+.intake-scope .pipe-view-toggle { margin-left: auto; display: inline-flex; background: #eef4fa; border-radius: 9px; padding: 3px; gap: 2px; }
+.intake-scope .pv-btn { border: none; background: none; cursor: pointer; padding: 5px 14px; border-radius: 7px; font-size: 13px; font-weight: 700; color: #7f9bb8; font-family: 'Quicksand', sans-serif; transition: background .14s, color .14s; }
+.intake-scope .pv-btn.active { background: #fff; color: #1b2b3f; box-shadow: 0 1px 3px rgba(6,11,20,0.12); }
+.intake-scope .pipeline-list { display: flex; flex-direction: column; gap: 10px; max-width: 720px; }
+.intake-scope .pipeline-list .card { width: 100%; }
