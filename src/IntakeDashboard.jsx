@@ -295,10 +295,6 @@ function TopNav({ lastUpdated, flash, activeTab, onTab }) {
           <button key={t.key} className={'tab' + (activeTab === t.key ? ' active' : '')} onClick={() => onTab(t.key)}>{t.label}</button>
         ))}
       </div>
-      <div className={'live-badge' + (flash ? ' flash' : '')}>
-        <span className="live-dot" />
-        Live{lastUpdated && <span className="updated"> · {timeAgo(lastUpdated)}</span>}
-      </div>
     </header>
   )
 }
