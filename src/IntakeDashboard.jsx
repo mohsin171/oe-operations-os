@@ -260,7 +260,7 @@ function Sidebar({ firm, stageCounts, needsAttention, total, activeFilter, onSta
           <button key={it.key} className={'side-item side-item-btn' + (isActive(it.key) ? ' active' : '')} onClick={() => onStage(it.key)}>
             <span className={'side-dot ' + it.dot} />
             <span className="side-item-label">{it.label}</span>
-            <span className="side-count">{stageCounts[it.key] || 0}</span>
+            {(stageCounts[it.key] || 0) > 0 && <span className="side-count">{stageCounts[it.key]}</span>}
           </button>
         ))}
       </div>
