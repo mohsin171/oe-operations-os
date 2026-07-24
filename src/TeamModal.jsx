@@ -59,7 +59,7 @@ export default function TeamModal({ myRole, onClose }) {
         {err && <div className="tm-err">{err}</div>}
 
         <div className="tm-list">
-          {loading ? <div className="tm-empty">Loading…</div> : members.map((m) => (
+          {loading ? <div className="tm-empty">Loading…</div> : members.length === 0 ? <div className="tm-empty">No members yet.</div> : members.map((m) => (
             <div className="tm-row" key={m.email}>
               <div className="tm-who">
                 <div className="tm-name">{m.name || m.email.split('@')[0]}{m.email === me && <span className="tm-you">you</span>}</div>
