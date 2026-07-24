@@ -417,7 +417,7 @@ export default function App() {
   const [authed, setAuthed] = useState(null); // null=checking, false=locked, true=in
   const [role, setRole] = useState(null);
   const [teamOpen, setTeamOpen] = useState(false);
-  const [tool, setTool] = useState('pipeline'); // 'intake' | 'pipeline'
+  const [tool, setTool] = useState('intake'); // 'intake' | 'pipeline'
   const [selectedId, setSelectedId] = useState(null);
   const [tab, setTab] = useState('overview');
   const [filter, setFilter] = useState(null);
