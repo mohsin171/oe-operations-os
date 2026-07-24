@@ -484,3 +484,8 @@
 .intake-scope .pv-btn.active { background: #fff; color: #1b2b3f; box-shadow: 0 1px 3px rgba(6,11,20,0.12); }
 .intake-scope .pipeline-list { display: flex; flex-direction: column; gap: 10px; width: 100%; }
 .intake-scope .pipeline-list .card { width: 100%; }
+
+/* list segments (stage headings in list view) */
+.intake-scope .pipeline-list .list-segment { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+.intake-scope .list-seg-head { display: flex; align-items: center; gap: 9px; font-family: 'Quicksand', sans-serif; font-weight: 700; font-size: 14px; color: #1b2b3f; padding: 2px 2px 4px; }
+.intake-scope .list-seg-head .seg-count { margin-left: 2px; font-size: 12px; font-weight: 700; color: #7f9bb8; background: #e7eff8; border-radius: 999px; padding: 1px 9px; }

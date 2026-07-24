@@ -446,19 +446,25 @@ function Pipeline({ leads, loading, view = 'board', selectedId, onSelect, filter
     )
   }
 
-  // List view: inbox logic. Leads needing a human first, then most recent activity.
+  // List view: full-width cards grouped under stage headings.
   if (view === 'list' && !(filter && filter.type !== 'all')) {
-    const lastActivity = (l) => new Date(l.last_contacted_at || l.updated_at || l.created_at).getTime()
-    const sorted = [...leads].sort((a, b) => {
-      const ha = a.handoff_needed ? 0 : 1, hb = b.handoff_needed ? 0 : 1
-      if (ha !== hb) return ha - hb
-      return lastActivity(b) - lastActivity(a)
-    })
+    const label = { new: 'New', qualified: 'Qualified', booked: 'Booked', handed_off: 'Needs a human', won: 'Won' }
+    const order = ['new', 'qualified', 'booked', 'handed_off', 'won']
+    const recency = (a, b) => new Date(b.last_contacted_at || b.updated_at || b.created_at) - new Date(a.last_contacted_at || a.updated_at || a.created_at)
     return (
       <div className="pipeline-list">
-        {sorted.map((l) => (
-          <LeadCard key={l.id} lead={l} selected={l.id === selectedId} onClick={() => onSelect(l.id)} />
-        ))}
+        {order.map((k) => {
+          const items = leads.filter((l) => intakeStage(l) === k).sort(recency)
+          if (items.length === 0) return null
+          return (
+            <div className="list-segment" key={k}>
+              <div className="list-seg-head"><span className={'stage-dot ' + k} /> {label[k]} <span className="seg-count">{items.length}</span></div>
+              {items.map((l) => (
+                <LeadCard key={l.id} lead={l} selected={l.id === selectedId} onClick={() => onSelect(l.id)} />
+              ))}
+            </div>
+          )
+        })}
       </div>
     )
   }
