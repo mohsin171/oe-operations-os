@@ -10,6 +10,7 @@ const ROLE_NOTE = {
 export default function TeamModal({ myRole, onClose }) {
   const [members, setMembers] = useState([]);
   const [me, setMe] = useState('');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('admin');
   const [busy, setBusy] = useState(false);
@@ -30,10 +31,10 @@ export default function TeamModal({ myRole, onClose }) {
     const e = email.trim().toLowerCase();
     if (!e.includes('@')) { setErr('Enter a valid email address.'); return; }
     setBusy(true);
-    const r = await post({ action: 'team-invite', email: e, role });
+    const r = await post({ action: 'team-invite', email: e, name: name.trim(), role });
     setBusy(false);
     if (r.error) { setErr(r.error); return; }
-    setEmail(''); setRole('admin'); load();
+    setName(''); setEmail(''); setRole('admin'); load();
   };
   const changeRole = async (em, rl) => { setErr(''); const r = await post({ action: 'team-role', email: em, role: rl }); if (r.error) { setErr(r.error); return; } load(); };
   const remove = async (em) => { setErr(''); if (!window.confirm(`Remove access for ${em}? Their active sessions end immediately.`)) return; const r = await post({ action: 'team-remove', email: em }); if (r.error) { setErr(r.error); return; } load(); };
@@ -48,6 +49,8 @@ export default function TeamModal({ myRole, onClose }) {
         <p className="tm-sub">People who can sign in to this dashboard. Access is by invitation only; each person signs in with a one-time code sent to their email.</p>
 
         <div className="tm-invite">
+          <input className="tm-input tm-name" type="text" placeholder="Full name" value={name}
+            onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && invite()} />
           <input className="tm-input" type="email" placeholder="colleague@firm.com" value={email}
             onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && invite()} />
           <select className="tm-select" value={role} onChange={(e) => setRole(e.target.value)}>

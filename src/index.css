@@ -834,3 +834,8 @@ h1, h2, h3, .brand-name { font-family: 'Quicksand', 'Nunito Sans', sans-serif; }
 .tm-remove:hover:not(:disabled) { background: rgba(192,71,63,0.08); }
 .tm-remove:disabled { opacity: .35; cursor: default; }
 .tm-empty { color: var(--muted); font-size: 13px; padding: 16px 0; }
+
+/* invite row: allow wrapping when a name field is added */
+.tm-invite { flex-wrap: wrap; }
+.tm-invite .tm-name { flex: 1 1 160px; }
+.tm-invite .tm-input[type="email"] { flex: 2 1 200px; }

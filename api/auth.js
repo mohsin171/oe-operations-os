@@ -71,7 +71,8 @@ export default async function handler(req, res) {
       const role = String(req.body?.role || 'admin');
       if (!email || !email.includes('@')) return send(400, { error: 'A valid email is required.' });
       if (role === 'owner' && s.role !== 'owner') return send(403, { error: 'Only an owner can add another owner.' });
-      await inviteMember(s.firm_id, email, role, s.email);
+      const name = String(req.body?.name || '').trim();
+      await inviteMember(s.firm_id, email, role, s.email, name);
       await sendInviteEmail(email, CONFIG.firm.name, s.name);
       return send(200, { ok: true });
     }
