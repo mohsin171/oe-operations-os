@@ -256,14 +256,13 @@ function Sidebar({ firm, stageCounts, needsAttention, total, activeFilter, onSta
 
       <div className="side-section">
         <div className="side-label">Pipeline</div>
-        {items.filter((it) => (stageCounts[it.key] || 0) > 0).map((it) => (
+        {items.map((it) => (
           <button key={it.key} className={'side-item side-item-btn' + (isActive(it.key) ? ' active' : '')} onClick={() => onStage(it.key)}>
             <span className={'side-dot ' + it.dot} />
             <span className="side-item-label">{it.label}</span>
-            <span className="side-count">{stageCounts[it.key]}</span>
+            <span className="side-count">{stageCounts[it.key] || 0}</span>
           </button>
         ))}
-        {items.every((it) => (stageCounts[it.key] || 0) === 0) && <div className="side-empty">No active leads</div>}
       </div>
 
       <div className="side-section">
