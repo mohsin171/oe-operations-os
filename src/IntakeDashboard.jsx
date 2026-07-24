@@ -446,13 +446,13 @@ function Pipeline({ leads, loading, view = 'board', selectedId, onSelect, filter
     )
   }
 
-  // List view: every lead in one column, grouped by stage order, newest first.
+  // List view: inbox logic. Leads needing a human first, then most recent activity.
   if (view === 'list' && !(filter && filter.type !== 'all')) {
-    const order = { new: 0, qualified: 1, booked: 2, handed_off: 3, won: 4 }
+    const lastActivity = (l) => new Date(l.last_contacted_at || l.updated_at || l.created_at).getTime()
     const sorted = [...leads].sort((a, b) => {
-      const sa = order[intakeStage(a)] ?? 9, sb = order[intakeStage(b)] ?? 9
-      if (sa !== sb) return sa - sb
-      return new Date(b.created_at) - new Date(a.created_at)
+      const ha = a.handoff_needed ? 0 : 1, hb = b.handoff_needed ? 0 : 1
+      if (ha !== hb) return ha - hb
+      return lastActivity(b) - lastActivity(a)
     })
     return (
       <div className="pipeline-list">
