@@ -769,3 +769,44 @@ h1, h2, h3, .brand-name { font-family: 'Quicksand', 'Nunito Sans', sans-serif; }
 .login-note b { color: #fff; letter-spacing: .1em; }
 .login-foot { margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(233,241,248,0.08); font-size: 11.5px; color: #5f7793; text-align: center; line-height: 1.5; }
 .logout-btn { color: var(--muted); }
+
+/* ---------- login portal: motion + glowing circles ---------- */
+.login-card { animation: loginRise 0.55s cubic-bezier(0.22,1,0.36,1) both; }
+@keyframes loginRise { from { opacity: 0; transform: translateY(22px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+/* drifting, breathing background glows */
+.login-bg-glow.g1 { animation: glowDrift1 16s ease-in-out infinite; }
+.login-bg-glow.g2 { animation: glowDrift2 20s ease-in-out infinite; }
+.login-bg-glow.g3 { width: 300px; height: 300px; left: 50%; top: 8%; background: rgba(69,146,220,.14); animation: glowBreathe 9s ease-in-out infinite; }
+@keyframes glowDrift1 { 0%,100% { transform: translate(0,0); opacity: .45; } 50% { transform: translate(-40px,30px); opacity: .65; } }
+@keyframes glowDrift2 { 0%,100% { transform: translate(0,0); opacity: .4; } 50% { transform: translate(36px,-28px); opacity: .6; } }
+@keyframes glowBreathe { 0%,100% { transform: translateX(-50%) scale(1); opacity: .35; } 50% { transform: translateX(-50%) scale(1.25); opacity: .55; } }
+
+/* glowing concentric rings, slowly rotating */
+.login-ring { position: absolute; border-radius: 50%; border: 1px solid rgba(69,146,220,0.16); box-shadow: 0 0 40px rgba(69,146,220,0.10) inset, 0 0 30px rgba(69,146,220,0.08); }
+.login-ring.lr1 { width: 620px; height: 620px; right: -160px; top: -180px; animation: ringSpin 60s linear infinite; }
+.login-ring.lr2 { width: 420px; height: 420px; right: -60px; top: -80px; border-color: rgba(69,146,220,0.10); animation: ringSpin 44s linear infinite reverse; }
+.login-ring.lr3 { width: 520px; height: 520px; left: -180px; bottom: -200px; border-color: rgba(56,117,174,0.12); animation: ringSpin 72s linear infinite; }
+@keyframes ringSpin { to { transform: rotate(360deg); } }
+
+/* small floating glowing orbs */
+.login-orb { position: absolute; border-radius: 50%; background: radial-gradient(circle at 30% 30%, #6fb2f0, #3875AE); box-shadow: 0 0 24px rgba(69,146,220,0.7); opacity: .5; }
+.login-orb.o1 { width: 10px; height: 10px; left: 22%; top: 30%; animation: orbFloat1 11s ease-in-out infinite; }
+.login-orb.o2 { width: 7px; height: 7px; right: 26%; top: 24%; animation: orbFloat2 14s ease-in-out infinite; }
+.login-orb.o3 { width: 12px; height: 12px; right: 30%; bottom: 22%; animation: orbFloat1 17s ease-in-out infinite; }
+@keyframes orbFloat1 { 0%,100% { transform: translate(0,0); opacity: .35; } 50% { transform: translate(18px,-26px); opacity: .8; } }
+@keyframes orbFloat2 { 0%,100% { transform: translate(0,0); opacity: .3; } 50% { transform: translate(-22px,20px); opacity: .7; } }
+
+/* mark: gentle glow pulse + slow swirl */
+.login-mark { animation: markPulse 3.6s ease-in-out infinite; }
+.login-mark span { animation: markSpin 8s linear infinite; }
+@keyframes markPulse { 0%,100% { box-shadow: 0 8px 20px rgba(69,146,220,.4); } 50% { box-shadow: 0 8px 34px rgba(69,146,220,.75); } }
+@keyframes markSpin { to { transform: rotate(315deg); } }
+
+/* step content fades/slides in on change */
+.login-step { animation: stepIn 0.32s ease both; }
+@keyframes stepIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card, .login-bg-glow, .login-ring, .login-orb, .login-mark, .login-mark span, .login-step { animation: none !important; }
+}

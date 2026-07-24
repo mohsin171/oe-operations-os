@@ -47,7 +47,9 @@ export default function LoginPortal({ firmName, onAuthed }) {
 
   return (
     <div className="login-wrap">
-      <div className="login-bg-glow g1" /><div className="login-bg-glow g2" />
+      <div className="login-bg-glow g1" /><div className="login-bg-glow g2" /><div className="login-bg-glow g3" />
+      <span className="login-ring lr1" /><span className="login-ring lr2" /><span className="login-ring lr3" />
+      <div className="login-orb o1" /><div className="login-orb o2" /><div className="login-orb o3" />
       <div className="login-card">
         <div className="login-brand">
           <div className="login-mark"><span></span></div>
@@ -57,6 +59,7 @@ export default function LoginPortal({ firmName, onAuthed }) {
           </div>
         </div>
 
+        <div className="login-step" key={step}>
         {step === 'email' ? (
           <>
             <h1>Sign in</h1>
@@ -86,6 +89,7 @@ export default function LoginPortal({ firmName, onAuthed }) {
             <button className="login-link" disabled={busy} onClick={() => { setStep('email'); setCode(''); setErr(''); setDevCode(''); }}>Use a different email</button>
           </>
         )}
+        </div>
 
         <div className="login-foot">Protected by one-time codes and encrypted sessions. Secured over HTTPS.</div>
       </div>
