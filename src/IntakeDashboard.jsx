@@ -121,8 +121,14 @@ export default function IntakeDashboard() {
     }
   }, [load])
 
-  const needsAttention = leads.filter((l) => intakeStage(l) === 'handed_off')
-  const stageCounts = STAGES.reduce((acc, s) => { acc[s.key] = leads.filter((l) => intakeStage(l) === s.key).length; return acc }, {})
+  const THIRTY = 30 * 24 * 3600 * 1000
+  const isRecent = (l) => (Date.now() - new Date(l.created_at).getTime()) <= THIRTY
+  const recentLeads = leads.filter(isRecent)
+  const oldLeads = leads.filter((l) => !isRecent(l))
+  const archiveLeads = [...oldLeads, ...archived]
+
+  const needsAttention = recentLeads.filter((l) => intakeStage(l) === 'handed_off')
+  const stageCounts = STAGES.reduce((acc, s) => { acc[s.key] = recentLeads.filter((l) => intakeStage(l) === s.key).length; return acc }, {})
 
   // Tapping a stat card or sidebar stage filters the pipeline and jumps to it.
   const applyFilter = (f) => { setFilter(f); setActiveTab('pipeline') }
@@ -133,9 +139,9 @@ export default function IntakeDashboard() {
       <div className="bg-glow bg-glow-2" />
       <span className="bg-ring bg-ring-1" />
       <span className="bg-ring bg-ring-2" />
-      <Sidebar firm={firm} stageCounts={stageCounts} needsAttention={needsAttention.length} total={leads.length}
+      <Sidebar firm={firm} stageCounts={stageCounts} needsAttention={needsAttention.length} total={recentLeads.length}
         activeFilter={filter} onStage={(k) => applyFilter({ type: 'stage', value: k })}
-        archivedCount={archived.length} archiveActive={activeTab === 'archive'}
+        archivedCount={archiveLeads.length} archiveActive={activeTab === 'archive'}
         onArchive={() => { setActiveTab('archive'); setFilter(null); setSelectedId(null) }}
         onHome={() => { setActiveTab('overview'); setFilter(null); setSelectedId(null) }} />
       <div className="workspace">
@@ -194,7 +200,7 @@ export default function IntakeDashboard() {
                   <button className={'pv-btn' + (pipeView === 'board' ? ' active' : '')} onClick={() => setPipeView('board')}>Board</button>
                 </div>
               </div>
-              <Pipeline leads={leads} loading={loading} view={pipeView} selectedId={selectedId} onSelect={setSelectedId} filter={filter} onClearFilter={() => setFilter(null)} onMove={moveLeadToStage} />
+              <Pipeline leads={recentLeads} loading={loading} view={pipeView} selectedId={selectedId} onSelect={setSelectedId} filter={filter} onClearFilter={() => setFilter(null)} onMove={moveLeadToStage} />
             </div>
           )}
 
@@ -202,18 +208,14 @@ export default function IntakeDashboard() {
             <div className="section">
               <div className="section-head">
                 <span className="section-title">Archive</span>
-                <span className="section-hint">no activity in 10+ days · kept for your records</span>
+                <span className="section-hint">older than 30 days · kept for your records</span>
               </div>
-              {archived.length === 0 ? (
+              {archiveLeads.length === 0 ? (
                 <div className="pipeline-empty">
-                  <strong>Archive is empty.</strong> Leads with no activity for 10 days move here automatically. Nothing is deleted.
+                  <strong>Archive is empty.</strong> Leads older than 30 days move here automatically. Nothing is deleted.
                 </div>
               ) : (
-                <div className="filtered-grid">
-                  {archived.map((l) => (
-                    <LeadCard key={l.id} lead={l} selected={l.id === selectedId} onClick={() => setSelectedId(l.id)} />
-                  ))}
-                </div>
+                <Pipeline leads={archiveLeads} loading={false} view="list" selectedId={selectedId} onSelect={setSelectedId} filter={null} onClearFilter={() => {}} onMove={() => {}} />
               )}
             </div>
           )}
