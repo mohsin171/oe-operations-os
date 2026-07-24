@@ -1,0 +1,17 @@
+{
+  "buildCommand": "vite build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/chat.js": { "maxDuration": 60 },
+    "api/tick.js": { "maxDuration": 60 },
+    "api/score.js": { "maxDuration": 60 },
+    "api/nurture.js": { "maxDuration": 60 }
+  },
+  "crons": [
+    { "path": "/api/tick", "schedule": "0 9 * * *" }
+  ],
+  "rewrites": [
+    { "source": "/site", "destination": "/site.html" },
+    { "source": "/((?!api/|assets/|site|widget.js|sample-leads|favicon).*)", "destination": "/index.html" }
+  ]
+}
