@@ -125,7 +125,7 @@ export default function IntakeDashboard() {
   const isRecent = (l) => (Date.now() - new Date(l.created_at).getTime()) <= THIRTY
   const recentLeads = leads.filter(isRecent)
   const oldLeads = leads.filter((l) => !isRecent(l))
-  const archiveLeads = [...oldLeads, ...archived]
+  const archiveLeads = oldLeads
 
   const needsAttention = recentLeads.filter((l) => intakeStage(l) === 'handed_off')
   const stageCounts = STAGES.reduce((acc, s) => { acc[s.key] = recentLeads.filter((l) => intakeStage(l) === s.key).length; return acc }, {})
