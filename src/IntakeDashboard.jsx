@@ -454,11 +454,34 @@ function Pipeline({ leads, loading, view = 'board', selectedId, onSelect, filter
       if (ha !== hb) return ha - hb
       return lastActivity(b) - lastActivity(a)
     })
+    const label = { new: 'New', qualified: 'Qualified', booked: 'Booked', handed_off: 'Needs a human', won: 'Won' }
+    const ago = (ts) => {
+      if (!ts) return ''
+      const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000)
+      if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s / 60) + 'm ago'
+      if (s < 86400) return Math.floor(s / 3600) + 'h ago'; return Math.floor(s / 86400) + 'd ago'
+    }
     return (
-      <div className="pipeline-list">
-        {sorted.map((l) => (
-          <LeadCard key={l.id} lead={l} selected={l.id === selectedId} onClick={() => onSelect(l.id)} />
-        ))}
+      <div className="lead-list">
+        <div className="lead-list-head">
+          <span>Lead</span><span>Stage</span><span>Interest</span><span>Activity</span>
+        </div>
+        {sorted.map((l) => {
+          const st = intakeStage(l)
+          const f = l.fields || {}
+          return (
+            <button key={l.id} className={'lead-row' + (l.id === selectedId ? ' selected' : '')} onClick={() => onSelect(l.id)}>
+              <span className="lr-lead">
+                <span className={'stage-dot ' + st} />
+                <span className="lr-name">{l.name || l.contact || 'New visitor'}</span>
+                {l.contact && <span className="lr-contact">{l.contact}</span>}
+              </span>
+              <span className="lr-stage">{label[st]}{l.handoff_needed && <span className="lr-flag">!</span>}</span>
+              <span className="lr-interest">{f.loan_purpose || l.matter || '—'}</span>
+              <span className="lr-time">{ago(l.last_contacted_at || l.created_at)}</span>
+            </button>
+          )
+        })}
       </div>
     )
   }
