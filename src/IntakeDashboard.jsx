@@ -59,7 +59,6 @@ export default function IntakeDashboard() {
   const [firm, setFirm] = useState('')
   const [firmTz, setFirmTz] = useState('Europe/London')
   const [leads, setLeads] = useState([])
-  const [archived, setArchived] = useState([])
   const [stats, setStats] = useState(null)
   const [bookings, setBookings] = useState([])
   const [selectedId, setSelectedId] = useState(null)
@@ -73,11 +72,10 @@ export default function IntakeDashboard() {
 
   const load = useCallback(async () => {
     try {
-      const [l, a, bk, arch] = await Promise.all([
+      const [l, a, bk] = await Promise.all([
         fetch('/api/leads').then((r) => r.json()),
         fetch('/api/analytics?view=intake').then((r) => r.json()),
         fetch('/api/book?list=1').then((r) => r.json()),
-        fetch('/api/leads?archived=1').then((r) => r.json()),
       ])
       const newLeads = l.leads || []
       if (prevCount.current && newLeads.length > prevCount.current) {
@@ -86,7 +84,6 @@ export default function IntakeDashboard() {
       }
       prevCount.current = newLeads.length
       setLeads(newLeads)
-      setArchived(arch.leads || [])
       setFirm(l.firm?.name || '')
       setFirmTz(l.firm?.timezone || 'Europe/London')
       setStats(a)
