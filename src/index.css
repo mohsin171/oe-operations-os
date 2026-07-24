@@ -80,6 +80,8 @@ h1, h2, h3, .brand-name { font-family: 'Quicksand', 'Nunito Sans', sans-serif; }
 .side-dot.qualified { background: var(--bright); }
 .side-dot.booked { background: var(--green); }
 .side-dot.handed_off { background: var(--amber); }
+.side-dot.nurture { background: var(--warm); }
+.side-dot.engaged { background: var(--green); }
 .side-dot.won { background: var(--steel); }
 .side-foot { margin-top: auto; font-size: 0.7rem; color: var(--faint); padding: 16px 10px 0; }
 
