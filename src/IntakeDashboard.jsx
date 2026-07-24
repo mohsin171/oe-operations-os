@@ -446,39 +446,19 @@ function Pipeline({ leads, loading, view = 'board', selectedId, onSelect, filter
     )
   }
 
-  // List view: full-width, grouped by stage (New, Qualified, Booked, Needs a human, Won).
+  // List view: inbox logic. Leads needing a human first, then most recent activity.
   if (view === 'list' && !(filter && filter.type !== 'all')) {
-    const label = { new: 'New', qualified: 'Qualified', booked: 'Booked', handed_off: 'Needs a human', won: 'Won' }
-    const order = ['new', 'qualified', 'booked', 'handed_off', 'won']
-    const ago = (ts) => {
-      if (!ts) return ''
-      const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000)
-      if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s / 60) + 'm ago'
-      if (s < 86400) return Math.floor(s / 3600) + 'h ago'; return Math.floor(s / 86400) + 'd ago'
-    }
-    const recency = (a, b) => new Date(b.last_contacted_at || b.updated_at || b.created_at) - new Date(a.last_contacted_at || a.updated_at || a.created_at)
+    const lastActivity = (l) => new Date(l.last_contacted_at || l.updated_at || l.created_at).getTime()
+    const sorted = [...leads].sort((a, b) => {
+      const ha = a.handoff_needed ? 0 : 1, hb = b.handoff_needed ? 0 : 1
+      if (ha !== hb) return ha - hb
+      return lastActivity(b) - lastActivity(a)
+    })
     return (
-      <div className="lead-list-full">
-        {order.map((k) => {
-          const items = leads.filter((l) => intakeStage(l) === k).sort(recency)
-          if (items.length === 0) return null
-          return (
-            <div className="ll-group" key={k}>
-              <div className="ll-group-head"><span className={'stage-dot ' + k} /> {label[k]} <span className="ll-count">{items.length}</span></div>
-              {items.map((l) => {
-                const f = l.fields || {}
-                return (
-                  <button key={l.id} className={'ll-row' + (l.id === selectedId ? ' selected' : '')} onClick={() => onSelect(l.id)}>
-                    <span className="ll-name">{l.name || l.contact || 'New visitor'}</span>
-                    <span className="ll-contact">{l.contact || ''}</span>
-                    <span className="ll-interest">{f.loan_purpose || l.matter || '—'}</span>
-                    <span className="ll-right">{l.handoff_needed && <span className="ll-flag">needs a human</span>}<span className="ll-time">{ago(l.last_contacted_at || l.created_at)}</span></span>
-                  </button>
-                )
-              })}
-            </div>
-          )
-        })}
+      <div className="pipeline-list">
+        {sorted.map((l) => (
+          <LeadCard key={l.id} lead={l} selected={l.id === selectedId} onClick={() => onSelect(l.id)} />
+        ))}
       </div>
     )
   }
