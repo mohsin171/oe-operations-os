@@ -72,7 +72,7 @@ h1, h2, h3, .brand-name { font-family: 'Quicksand', 'Nunito Sans', sans-serif; }
 }
 .side-item:hover { background: var(--light); }
 .side-item-label { flex: 1; }
-.side-count { font-size: 0.76rem; color: var(--muted); background: var(--light); border-radius: 999px; padding: 2px 10px; min-width: 26px; text-align: center; font-weight: 700; }
+.side-count { font-size: 0.82rem; color: var(--bright); background: transparent; padding: 2px 6px; min-width: 20px; text-align: right; font-weight: 700; }
 .side-count.urgent { color: var(--steel); background: #DCEAF8; }
 .attention-item .side-item-label { color: var(--steel); font-weight: 700; }
 .side-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }

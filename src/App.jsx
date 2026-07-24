@@ -75,7 +75,7 @@ function Sidebar({ firm, stageCounts, bandCounts, total, hotWaiting, filter, onF
             <button key={s.key} className={'side-item side-item-btn' + (activeStage === s.key ? ' active' : '')} onClick={() => onFilter({ type: 'stage', value: s.key })}>
               <span className={'side-dot ' + s.dot} />
               <span className="side-item-label">{s.label}</span>
-              <span className="side-count">{stageCounts[s.key] || 0}</span>
+              {(stageCounts[s.key] || 0) > 0 && <span className="side-count">{stageCounts[s.key]}</span>}
             </button>
           ))}
         </div>
@@ -86,7 +86,7 @@ function Sidebar({ firm, stageCounts, bandCounts, total, hotWaiting, filter, onF
             <button key={b.key} className={'side-item side-item-btn' + (activeBand === b.key ? ' active' : '')} onClick={() => onFilter({ type: 'band', value: b.key })}>
               <span className={'side-dot ' + b.dot} />
               <span className="side-item-label">{b.label}</span>
-              <span className="side-count">{bandCounts[b.key] || 0}</span>
+              {(bandCounts[b.key] || 0) > 0 && <span className="side-count">{bandCounts[b.key]}</span>}
             </button>
           ))}
         </div>
