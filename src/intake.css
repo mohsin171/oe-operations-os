@@ -475,3 +475,5 @@
 /* ensure border-box applies to all descendants inside the scoped dashboard */
 .intake-scope, .intake-scope * { box-sizing: border-box; }
 .intake-scope .shell { min-height: calc(100vh - 60px); }
+
+.intake-scope, .intake-scope * { box-sizing: border-box; }
