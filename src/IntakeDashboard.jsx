@@ -345,7 +345,7 @@ function Analytics({ stats }) {
 function Funnel({ stats }) {
   const total = stats.total_leads || 0
   const steps = [
-    { label: 'Captured', n: total, pct: 100 },
+    { label: 'Captured', n: total, pct: total > 0 ? 100 : 0 },
     { label: 'Qualified', n: stats.qualified, pct: total ? Math.round((stats.qualified / total) * 100) : 0 },
     { label: 'Booked', n: stats.meetings_booked, pct: total ? Math.round((stats.meetings_booked / total) * 100) : 0 },
   ]
@@ -356,7 +356,7 @@ function Funnel({ stats }) {
         {steps.map((s) => (
           <div key={s.label} className="funnel-row">
             <div className="funnel-head"><span>{s.label}</span><strong>{s.n}</strong></div>
-            <div className="funnel-bar"><div className="funnel-fill" style={{ width: Math.max(s.pct, 3) + '%' }} /></div>
+            <div className="funnel-bar"><div className="funnel-fill" style={{ width: (s.n > 0 ? Math.max(s.pct, 3) : 0) + '%' }} /></div>
           </div>
         ))}
       </div>
