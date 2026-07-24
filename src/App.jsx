@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import LeadDetail from './LeadDetail.jsx';
 import LoginPortal from './LoginPortal.jsx';
+import TeamModal from './TeamModal.jsx';
 
 const STAGES = [
   { key: 'new', label: 'New', dot: 'new' },
@@ -106,7 +107,7 @@ function Sidebar({ firm, stageCounts, bandCounts, total, hotWaiting, filter, onF
 }
 
 /* ---------- topnav ---------- */
-function TopNav({ lastUpdated, flash, tab, onTab, onOpenImport, onRun, running, onLogout }) {
+function TopNav({ lastUpdated, flash, tab, onTab, onOpenImport, onRun, running, onLogout, canWrite, onTeam }) {
   const tabs = [{ key: 'overview', label: 'Overview' }, { key: 'pipeline', label: 'Pipeline' }, { key: 'reports', label: 'Reports' }];
   return (
     <header className="topnav">
@@ -117,8 +118,9 @@ function TopNav({ lastUpdated, flash, tab, onTab, onOpenImport, onRun, running, 
         <div className={'live-badge' + (flash ? ' flash' : '')}>
           <span className="live-dot" /> Live{lastUpdated && <span className="updated"> · {timeAgo(lastUpdated)}</span>}
         </div>
-        <button className="tool-btn" onClick={onOpenImport}>Import leads</button>
-        <button className="tool-btn primary" onClick={onRun} disabled={running}>{running ? 'Running…' : 'Run pipeline'}</button>
+        {canWrite && <button className="tool-btn" onClick={onOpenImport}>Import leads</button>}
+        {canWrite && <button className="tool-btn primary" onClick={onRun} disabled={running}>{running ? 'Running…' : 'Run pipeline'}</button>}
+        {canWrite && onTeam && <button className="tool-btn" onClick={onTeam}>Team</button>}
         {onLogout && <button className="tool-btn logout-btn" onClick={onLogout} title="Sign out">Sign out</button>}
       </div>
     </header>
@@ -417,6 +419,8 @@ export default function App() {
   const [stats, setStats] = useState(null);
   const [cfg, setCfg] = useState(null);
   const [authed, setAuthed] = useState(null); // null=checking, false=locked, true=in
+  const [role, setRole] = useState(null);
+  const [teamOpen, setTeamOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [tab, setTab] = useState('overview');
   const [filter, setFilter] = useState(null);
@@ -438,7 +442,7 @@ export default function App() {
   }, [cfg]);
 
   useEffect(() => {
-    api('/api/config').then((c) => { setCfg(c); setAuthed(!!c.authed); }).catch(() => setAuthed(false));
+    api('/api/config').then((c) => { setCfg(c); setAuthed(!!c.authed); setRole(c.role || null); }).catch(() => setAuthed(false));
   }, []);
   useEffect(() => { if (authed) load(); }, [authed, load]);
   useEffect(() => { if (!authed) return; const t = setInterval(load, 8000); return () => clearInterval(t); }, [authed, load]);
@@ -462,6 +466,7 @@ export default function App() {
     await load();
   };
 
+  const canWrite = role === 'admin' || role === 'owner';
   const byStage = (k) => leads.filter((l) => l.stage === k);
   const stageCounts = {}; STAGES.forEach((s) => { stageCounts[s.key] = byStage(s.key).length; });
   const bandCounts = {}; (stats?.bandDist || []).forEach((b) => { bandCounts[b.score_band] = b.n; });
@@ -496,7 +501,8 @@ export default function App() {
 
         <div className="workspace">
           <TopNav lastUpdated={updatedAt} flash={flash} tab={tab} onTab={(t) => { setTab(t); setFilter(null); }}
-            onOpenImport={() => setImportOpen(true)} onRun={runPipeline} running={running} onLogout={logout} />
+            onOpenImport={() => setImportOpen(true)} onRun={runPipeline} running={running} onLogout={logout}
+            canWrite={canWrite} onTeam={() => setTeamOpen(true)} />
 
           <main className="main" key={tab + (filter ? filter.value : '')}>
             {total === 0 && (
@@ -586,9 +592,10 @@ export default function App() {
           </main>
         </div>
 
-        {selectedId && <LeadDetail id={selectedId} onClose={() => setSelectedId(null)} onChanged={load} team={cfg?.firm?.team || []} api={api} />}
+        {selectedId && <LeadDetail canWrite={canWrite} id={selectedId} onClose={() => setSelectedId(null)} onChanged={load} team={cfg?.firm?.team || []} api={api} />}
       </div>
       {importOpen && <ImportModal onClose={closeImport} onImport={doImport} onClearAll={clearAll} />}
+      {teamOpen && <TeamModal myRole={role} onClose={() => setTeamOpen(false)} />}
     </>
   );
 }

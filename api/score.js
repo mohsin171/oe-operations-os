@@ -5,10 +5,10 @@ import { scoreAndRoute } from '../lib/engine.js';
 import { send, getFirmId, body } from '../lib/http.js';
 import { rateLimit } from '../lib/ratelimit.js';
 import { checkAuth } from '../lib/auth.js';
-import { requireSession } from '../lib/session.js';
+import { requireRole } from '../lib/session.js';
 
 export default async function handler(req, res) {
-  const _sess = await requireSession(req, res);
+  const _sess = await requireRole(req, res, 'admin');
   if (!_sess) return;
   try {
     if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' });

@@ -4,11 +4,12 @@
 import { all, one, query } from '../db/index.js';
 import { send, getFirmId, body } from '../lib/http.js';
 import { checkAuth } from '../lib/auth.js';
-import { requireSession } from '../lib/session.js';
+import { requireSession, rank } from '../lib/session.js';
 
 export default async function handler(req, res) {
   const _sess = await requireSession(req, res);
   if (!_sess) return;
+  if ((req.method === 'PATCH' || req.method === 'POST') && rank(_sess.role) < rank('admin')) return send(res, 403, { error: 'forbidden' });
   try {
     const firmId = await getFirmId();
     if (!firmId) return send(res, 200, { leads: [] });

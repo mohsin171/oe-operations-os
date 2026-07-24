@@ -8,10 +8,10 @@ import { getSession } from '../lib/session.js';
 import { send } from '../lib/http.js';
 
 export default async function handler(req, res) {
-  let authed = false;
-  try { authed = !!(await getSession(req)); } catch {}
+  let authed = false, role = null, email = null;
+  try { const s = await getSession(req); if (s) { authed = true; role = s.role; email = s.email; } } catch {}
   return send(res, 200, {
-    authed,
+    authed, role, email,
     firm: {
       name: CONFIG.firm.name,
       vertical: CONFIG.firm.vertical,

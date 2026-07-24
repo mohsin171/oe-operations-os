@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 const money = (n) => (n ? '$' + Number(n).toLocaleString('en-US') : null);
 const fmt = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : null);
 
-export default function LeadDetail({ id, onClose, onChanged, team, api }) {
+export default function LeadDetail({ id, onClose, onChanged, team, api, canWrite = true }) {
   const [data, setData] = useState(null);
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -127,6 +127,7 @@ export default function LeadDetail({ id, onClose, onChanged, team, api }) {
         </div>
       )}
 
+      {canWrite && (
       <div className="panel-actions">
         <div className="stage-move">
           <span className="pa-label">Move to</span>
@@ -136,14 +137,17 @@ export default function LeadDetail({ id, onClose, onChanged, team, api }) {
           ))}
         </div>
       </div>
+      )}
 
       <div className="panel-section">
         <h3>Follow-up · step {l.nurture_step} of 5{l.nurture_paused ? ' · paused' : ''}{l.opted_out ? ' · opted out' : ''}</h3>
+        {canWrite && (
         <div className="stage-move" style={{ marginBottom: 12 }}>
           <button className="stage-btn" disabled={busy} onClick={runNurture}>Send next</button>
           <button className="stage-btn" disabled={busy} onClick={doPreview}>Preview</button>
           <button className="stage-btn" disabled={busy} onClick={() => togglePause(!l.nurture_paused)}>{l.nurture_paused ? 'Resume' : 'Pause'}</button>
         </div>
+        )}
         {outMsgs.length === 0 && <div className="muted">No follow-ups sent yet.</div>}
         {outMsgs.map((m) => (
           <div className="nurture-msg" key={m.id}>
@@ -156,7 +160,7 @@ export default function LeadDetail({ id, onClose, onChanged, team, api }) {
         {preview && <div className="nurture-msg" style={{ marginTop: 10 }}><div className="nm-sub">{preview.subject}</div><div className="nm-body" style={{ maxHeight: 'none' }}>{preview.body}</div></div>}
       </div>
 
-      {team.length > 0 && (
+      {canWrite && team.length > 0 && (
         <div className="panel-section">
           <h3>Assign to</h3>
           <div className="stage-move">
@@ -182,6 +186,7 @@ export default function LeadDetail({ id, onClose, onChanged, team, api }) {
           ))}
         </ul>
       </div>
+      {canWrite && (
       <div className="panel-section manage-section">
         <h3>Manage</h3>
         <div className="stage-move">
@@ -190,6 +195,7 @@ export default function LeadDetail({ id, onClose, onChanged, team, api }) {
         </div>
         <div className="manage-note">Archive hides the lead but keeps the record. Delete erases it and all its history, for a data-removal request.</div>
       </div>
+      )}
     </aside>
   );
 }

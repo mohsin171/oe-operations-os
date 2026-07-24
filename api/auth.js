@@ -7,14 +7,17 @@ import { one } from '../db/index.js';
 import {
   isAllowed, issueCode, verifyCode, createSession, getSession,
   destroySession, setSessionCookie, clearSessionCookie, sendOtpEmail,
+  requireRole, listTeam, inviteMember, setMemberRole, removeMember,
+  countOwners, touchLogin, sendInviteEmail, rank,
 } from '../lib/session.js';
+import { CONFIG } from '../lib/config.js';
 
 export default async function handler(req, res) {
   const send = (c, o) => { res.statusCode = c; res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(o)); };
   try {
     if (req.method === 'GET') {
       const s = await getSession(req);
-      return send(200, { authed: !!s, email: s?.email || null });
+      return send(200, { authed: !!s, email: s?.email || null, role: s?.role || null, name: s?.name || null });
     }
     if (req.method !== 'POST') return send(405, { error: 'method not allowed' });
 
@@ -45,13 +48,52 @@ export default async function handler(req, res) {
       const v = await verifyCode(email, code);
       if (!v.ok) return send(401, { error: 'Invalid or expired code.' });
       const token = await createSession(email, admin.firm_id);
+      await touchLogin(email);
       setSessionCookie(res, token);
-      return send(200, { ok: true, email });
+      return send(200, { ok: true, email, role: admin.role });
     }
 
     if (action === 'logout') {
       await destroySession(req);
       clearSessionCookie(res);
+      return send(200, { ok: true });
+    }
+
+
+    // ---- team management (owner/admin only) ----
+    if (action === 'team-list') {
+      const s = await requireRole(req, res, 'admin'); if (!s) return;
+      const members = await listTeam(s.firm_id);
+      return send(200, { members, me: s.email, myRole: s.role });
+    }
+    if (action === 'team-invite') {
+      const s = await requireRole(req, res, 'admin'); if (!s) return;
+      const role = String(req.body?.role || 'admin');
+      if (!email || !email.includes('@')) return send(400, { error: 'A valid email is required.' });
+      if (role === 'owner' && s.role !== 'owner') return send(403, { error: 'Only an owner can add another owner.' });
+      await inviteMember(s.firm_id, email, role, s.email);
+      await sendInviteEmail(email, CONFIG.firm.name, s.name);
+      return send(200, { ok: true });
+    }
+    if (action === 'team-role') {
+      const s = await requireRole(req, res, 'admin'); if (!s) return;
+      const role = String(req.body?.role || '');
+      if (!email || !['owner','admin','viewer'].includes(role)) return send(400, { error: 'Email and a valid role are required.' });
+      if (role === 'owner' && s.role !== 'owner') return send(403, { error: 'Only an owner can promote to owner.' });
+      // don't demote the last owner
+      const target = await isAllowed(email);
+      if (target && target.role === 'owner' && role !== 'owner' && (await countOwners(s.firm_id)) <= 1)
+        return send(400, { error: 'You cannot remove the last owner.' });
+      await setMemberRole(s.firm_id, email, role);
+      return send(200, { ok: true });
+    }
+    if (action === 'team-remove') {
+      const s = await requireRole(req, res, 'admin'); if (!s) return;
+      if (!email) return send(400, { error: 'Email required.' });
+      const target = await isAllowed(email);
+      if (target && target.role === 'owner' && (await countOwners(s.firm_id)) <= 1)
+        return send(400, { error: 'You cannot remove the last owner.' });
+      await removeMember(s.firm_id, email);
       return send(200, { ok: true });
     }
 

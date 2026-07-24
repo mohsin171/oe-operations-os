@@ -161,3 +161,9 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at  TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX IF NOT EXISTS sessions_token_idx ON sessions(token_hash);
+
+-- Roles & team management (owner > admin > viewer). status: active | invited | removed.
+ALTER TABLE admins ADD COLUMN IF NOT EXISTS role          TEXT NOT NULL DEFAULT 'admin';
+ALTER TABLE admins ADD COLUMN IF NOT EXISTS status        TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE admins ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+ALTER TABLE admins ADD COLUMN IF NOT EXISTS invited_by    TEXT;
