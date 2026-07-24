@@ -62,12 +62,12 @@ export default async function handler(req, res) {
 
     // ---- team management (owner/admin only) ----
     if (action === 'team-list') {
-      const s = await requireRole(req, res, 'admin'); if (!s) return;
+      const s = await requireRole(req, res, 'owner'); if (!s) return;
       const members = await listTeam(s.firm_id);
       return send(200, { members, me: s.email, myRole: s.role });
     }
     if (action === 'team-invite') {
-      const s = await requireRole(req, res, 'admin'); if (!s) return;
+      const s = await requireRole(req, res, 'owner'); if (!s) return;
       const role = String(req.body?.role || 'admin');
       if (!email || !email.includes('@')) return send(400, { error: 'A valid email is required.' });
       if (role === 'owner' && s.role !== 'owner') return send(403, { error: 'Only an owner can add another owner.' });
@@ -77,7 +77,7 @@ export default async function handler(req, res) {
       return send(200, { ok: true });
     }
     if (action === 'team-role') {
-      const s = await requireRole(req, res, 'admin'); if (!s) return;
+      const s = await requireRole(req, res, 'owner'); if (!s) return;
       const role = String(req.body?.role || '');
       if (!email || !['owner','admin','viewer'].includes(role)) return send(400, { error: 'Email and a valid role are required.' });
       if (role === 'owner' && s.role !== 'owner') return send(403, { error: 'Only an owner can promote to owner.' });
@@ -89,7 +89,7 @@ export default async function handler(req, res) {
       return send(200, { ok: true });
     }
     if (action === 'team-remove') {
-      const s = await requireRole(req, res, 'admin'); if (!s) return;
+      const s = await requireRole(req, res, 'owner'); if (!s) return;
       if (!email) return send(400, { error: 'Email required.' });
       const target = await isAllowed(email);
       if (target && target.role === 'owner' && (await countOwners(s.firm_id)) <= 1)

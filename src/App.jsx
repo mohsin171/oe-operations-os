@@ -107,7 +107,7 @@ function Sidebar({ firm, stageCounts, bandCounts, total, hotWaiting, filter, onF
 }
 
 /* ---------- topnav ---------- */
-function TopNav({ lastUpdated, flash, tab, onTab, onOpenImport, onRun, running, onLogout, canWrite, onTeam }) {
+function TopNav({ lastUpdated, flash, tab, onTab, onOpenImport, onRun, running, onLogout, canWrite, isOwner, onTeam }) {
   const tabs = [{ key: 'overview', label: 'Overview' }, { key: 'pipeline', label: 'Pipeline' }, { key: 'reports', label: 'Reports' }];
   return (
     <header className="topnav">
@@ -120,7 +120,7 @@ function TopNav({ lastUpdated, flash, tab, onTab, onOpenImport, onRun, running, 
         </div>
         {canWrite && <button className="tool-btn" onClick={onOpenImport}>Import leads</button>}
         {canWrite && <button className="tool-btn primary" onClick={onRun} disabled={running}>{running ? 'Running…' : 'Run pipeline'}</button>}
-        {canWrite && onTeam && <button className="tool-btn" onClick={onTeam}>Team</button>}
+        {isOwner && onTeam && <button className="tool-btn" onClick={onTeam}>Team</button>}
         {onLogout && <button className="tool-btn logout-btn" onClick={onLogout} title="Sign out">Sign out</button>}
       </div>
     </header>
@@ -467,6 +467,7 @@ export default function App() {
   };
 
   const canWrite = role === 'admin' || role === 'owner';
+  const isOwner = role === 'owner';
   const byStage = (k) => leads.filter((l) => l.stage === k);
   const stageCounts = {}; STAGES.forEach((s) => { stageCounts[s.key] = byStage(s.key).length; });
   const bandCounts = {}; (stats?.bandDist || []).forEach((b) => { bandCounts[b.score_band] = b.n; });
@@ -502,7 +503,7 @@ export default function App() {
         <div className="workspace">
           <TopNav lastUpdated={updatedAt} flash={flash} tab={tab} onTab={(t) => { setTab(t); setFilter(null); }}
             onOpenImport={() => setImportOpen(true)} onRun={runPipeline} running={running} onLogout={logout}
-            canWrite={canWrite} onTeam={() => setTeamOpen(true)} />
+            canWrite={canWrite} isOwner={isOwner} onTeam={() => setTeamOpen(true)} />
 
           <main className="main" key={tab + (filter ? filter.value : '')}>
             {total === 0 && (
