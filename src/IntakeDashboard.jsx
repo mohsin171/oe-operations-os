@@ -267,11 +267,11 @@ function Sidebar({ firm, stageCounts, needsAttention, total, activeFilter, onSta
 
       <div className="side-section">
         <div className="side-label">At a glance</div>
-        <div className="side-item"><span className="side-item-label">Total leads</span><span className="side-count">{total}</span></div>
+        <div className="side-item"><span className="side-item-label">Total leads</span>{total > 0 && <span className="side-count">{total}</span>}</div>
         {needsAttention > 0 && (
           <button className="side-item side-item-btn attention-item" onClick={() => onStage('handed_off')}><span className="side-item-label">Needs a human</span><span className="side-count urgent">{needsAttention}</span></button>
         )}
-        <button className={'side-item side-item-btn' + (archiveActive ? ' active' : '')} onClick={onArchive}><span className="side-item-label">Archive</span><span className="side-count">{archivedCount || 0}</span></button>
+        <button className={'side-item side-item-btn' + (archiveActive ? ' active' : '')} onClick={onArchive}><span className="side-item-label">Archive</span>{(archivedCount || 0) > 0 && <span className="side-count">{archivedCount}</span>}</button>
       </div>
 
       <div className="side-foot">Powered by Orca Edge</div>
