@@ -107,7 +107,7 @@ function Sidebar({ firm, stageCounts, bandCounts, total, hotWaiting, filter, onF
 }
 
 /* ---------- topnav ---------- */
-function TopNav({ lastUpdated, flash, tab, onTab, onOpenImport, onRun, running, onLogout, canWrite, isOwner, onTeam }) {
+function TopNav({ tab, onTab, onOpenImport, onRun, running, canWrite }) {
   const tabs = [{ key: 'overview', label: 'Overview' }, { key: 'pipeline', label: 'Pipeline' }, { key: 'reports', label: 'Reports' }];
   return (
     <header className="topnav">
@@ -115,13 +115,8 @@ function TopNav({ lastUpdated, flash, tab, onTab, onOpenImport, onRun, running, 
         {tabs.map((t) => <button key={t.key} className={'tab' + (tab === t.key ? ' active' : '')} onClick={() => onTab(t.key)}>{t.label}</button>)}
       </div>
       <div className="topnav-actions">
-        <div className={'live-badge' + (flash ? ' flash' : '')}>
-          <span className="live-dot" /> Live{lastUpdated && <span className="updated"> · {timeAgo(lastUpdated)}</span>}
-        </div>
         {canWrite && <button className="tool-btn" onClick={onOpenImport}>Import leads</button>}
         {canWrite && <button className="tool-btn primary" onClick={onRun} disabled={running}>{running ? 'Running…' : 'Run pipeline'}</button>}
-        {isOwner && onTeam && <button className="tool-btn" onClick={onTeam}>Team</button>}
-        {onLogout && <button className="tool-btn logout-btn" onClick={onLogout} title="Sign out">Sign out</button>}
       </div>
     </header>
   );
@@ -421,6 +416,7 @@ export default function App() {
   const [authed, setAuthed] = useState(null); // null=checking, false=locked, true=in
   const [role, setRole] = useState(null);
   const [teamOpen, setTeamOpen] = useState(false);
+  const [tool, setTool] = useState('pipeline'); // 'intake' | 'pipeline'
   const [selectedId, setSelectedId] = useState(null);
   const [tab, setTab] = useState('overview');
   const [filter, setFilter] = useState(null);
@@ -491,6 +487,37 @@ export default function App() {
 
   return (
     <>
+      <div className="appbar">
+        <div className="appbar-brand">
+          <div className="appbar-mark"><Mark /></div>
+          <div className="appbar-firm">{cfg?.firm?.name || 'Rivergate Mortgages'}<span className="appbar-os">Operations OS</span></div>
+        </div>
+        <nav className="tool-tabs">
+          <button className={'tool-tab' + (tool === 'intake' ? ' active' : '')} onClick={() => setTool('intake')}>
+            24/7 AI Client Intake and CRM Automation
+          </button>
+          <button className={'tool-tab' + (tool === 'pipeline' ? ' active' : '')} onClick={() => setTool('pipeline')}>
+            AI Lead Qualification &amp; Pipeline Management
+          </button>
+        </nav>
+        <div className="appbar-right">
+          <div className={'live-badge' + (flash ? ' flash' : '')}><span className="live-dot" /> Live{updatedAt && <span className="updated"> · {timeAgo(updatedAt)}</span>}</div>
+          {isOwner && <button className="tool-btn" onClick={() => setTeamOpen(true)}>Team</button>}
+          <button className="tool-btn logout-btn" onClick={logout} title="Sign out">Sign out</button>
+        </div>
+      </div>
+
+      {tool === 'intake' && (
+        <div className="tool-view">
+          <div className="intake-soon">
+            <div className="eh-icon">💬</div>
+            <h2>24/7 AI Client Intake and CRM Automation</h2>
+            <p>The conversations inbox, live threads across every channel, human reply, and internal notes are being built into this tab next. Leads captured here flow automatically into the pipeline.</p>
+          </div>
+        </div>
+      )}
+
+      {tool === 'pipeline' && (
       <div className="shell">
         <div className="bg-glow bg-glow-1" /><div className="bg-glow bg-glow-2" />
         <span className="bg-ring bg-ring-1" /><span className="bg-ring bg-ring-2" />
@@ -501,9 +528,8 @@ export default function App() {
           onHome={() => { setFilter(null); setTab('overview'); }} />
 
         <div className="workspace">
-          <TopNav lastUpdated={updatedAt} flash={flash} tab={tab} onTab={(t) => { setTab(t); setFilter(null); }}
-            onOpenImport={() => setImportOpen(true)} onRun={runPipeline} running={running} onLogout={logout}
-            canWrite={canWrite} isOwner={isOwner} onTeam={() => setTeamOpen(true)} />
+          <TopNav tab={tab} onTab={(t) => { setTab(t); setFilter(null); }}
+            onOpenImport={() => setImportOpen(true)} onRun={runPipeline} running={running} canWrite={canWrite} />
 
           <main className="main" key={tab + (filter ? filter.value : '')}>
             {total === 0 && (
@@ -595,6 +621,7 @@ export default function App() {
 
         {selectedId && <LeadDetail canWrite={canWrite} id={selectedId} onClose={() => setSelectedId(null)} onChanged={load} team={cfg?.firm?.team || []} api={api} />}
       </div>
+      )}
       {importOpen && <ImportModal onClose={closeImport} onImport={doImport} onClearAll={clearAll} />}
       {teamOpen && <TeamModal myRole={role} onClose={() => setTeamOpen(false)} />}
     </>
